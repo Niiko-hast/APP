@@ -300,7 +300,6 @@
         badge.textContent = 'DESPERTANDO SERVIDOR...';
         badge.className = 'status-badge connecting';
         reconnectAttempts++;
-        // Reintento automático inteligente (respalda si el servidor gratuito duerme)
         setTimeout(initWebSocket, 4000);
       };
 
@@ -416,7 +415,6 @@
       showToast('Memoria purgada');
     }
 
-    // Iniciar conexión al cargar
     initWebSocket();
   </script>
 </body>
