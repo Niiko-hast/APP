@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#070a10">
+  <meta name="description" content="Comunicación Criptográfica Multicapa Cero Rastro">
+  <title>CIPHER // Cero Rastro</title>
+  <link rel="manifest" href="./manifest.json">
+  <style>
+    :root {
+      --bg-main: #070a10;
+      --bg-panel: #0d131f;
+      --cyan: #00f3ff;
+      --emerald: #10b981;
+      --danger: #ef4444;
+      --text-main: #e2e8f0;
+      --text-muted: #64748b;
+      --border: #1e293b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Courier New', Courier, monospace;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      user-select: none;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    .brand h1 {
+      font-size: 1.4rem;
+      letter-spacing: 3px;
+      color: var(--cyan);
+    }
+
+    .status-badge {
+      font-size: 0.7rem;
+      padding: 4px 8px;
+      border: 1px solid var(--emerald);
+      color: var(--emerald);
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tab-btn {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: 0 0 12px rgba(0, 243, 255, 0.15);
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--cyan);
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+
+    input[type="password"], textarea {
+      width: 100%;
+      background: var(--bg-main);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      outline: none;
+      user-select: text;
+    }
+
+    input[type="password"]:focus, textarea:focus {
+      border-color: var(--cyan);
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
+      color: #070a10;
+      border: none;
+      padding: 14px;
+      font-weight: bold;
+      font-size: 1rem;
+      letter-spacing: 1.5px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--emerald);
+      color: var(--emerald);
+      padding: 12px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-wipe {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: 12px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: auto;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--emerald);
+      color: var(--bg-main);
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 512 512">
+        <path d="M256 64L96 136v112c0 104.5 68.3 202.2 160 228 91.7-25.8 160-123.5 160-228V136L256 64z" fill="none" stroke="#00f3ff" stroke-width="32"/>
+        <circle cx="256" cy="240" r="32" fill="#10b981"/>
+        <path d="M256 272v56" stroke="#10b981" stroke-width="28" stroke-linecap="round"/>
+      </svg>
+      <h1>CIPHER</h1>
+    </div>
+    <span class="status-badge">AES-256 // RAM</span>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabEncrypt" onclick="setMode('encrypt')">CIFRAR</button>
+    <button class="tab-btn" id="tabDecrypt" onclick="setMode('decrypt')">DESCIFRAR</button>
+  </div>
+
+  <div class="panel">
+    <label for="secretKey">LLAVE MAESTRA DE SESIÓN</label>
+    <input type="password" id="secretKey" placeholder="Introduce frase clave compartida..." autocomplete="off">
+  </div>
+
+  <div class="panel">
+    <label id="inputLabel" for="inputText">MENSAJE EN TEXTO PLANO</label>
+    <textarea id="inputText" placeholder="Escribe el mensaje confidencial aquí..."></textarea>
+  </div>
+
+  <div class="actions">
+    <button class="btn-primary" id="actionBtn" onclick="processCrypto()">EJECUTAR CIFRADO</button>
+  </div>
+
+  <div class="panel">
+    <label for="outputText">SALIDA CRIPTOGRÁFICA</label>
+    <textarea id="outputText" readonly placeholder="El resultado aparecerá aquí..."></textarea>
+  </div>
+
+  <div class="actions">
+    <button class="btn-secondary" onclick="copyOutput()">COPIAR AL PORTAPAPELES</button>
+  </div>
+
+  <button class="btn-wipe" onclick="zeroTraceWipe()">PURGA CERO RASTRO (LIMPIAR MEMORIA)</button>
+
+  <div class="toast" id="toast">Mensaje copiado</div>
+
+  <script>
+    let currentMode = 'encrypt';
+
+    // Registro del Service Worker para soporte PWA/APK
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW Error:', err));
+      });
+    }
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.background = isError ? '#ef4444' : '#10b981';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('tabEncrypt').classList.toggle('active', mode === 'encrypt');
+      document.getElementById('tabDecrypt').classList.toggle('active', mode === 'decrypt');
+      document.getElementById('inputLabel').textContent = mode === 'encrypt' ? 'MENSAJE EN TEXTO PLANO' : 'BLOQUE CIFRADO (BASE64)';
+      document.getElementById('inputText').placeholder = mode === 'encrypt' ? 'Escribe el mensaje confidencial aquí...' : 'Pega aquí el código cifrado recibido...';
+      document.getElementById('actionBtn').textContent = mode === 'encrypt' ? 'EJECUTAR CIFRADO' : 'DESCIFRAR MENSAJE';
+      document.getElementById('outputText').value = '';
+    }
+
+    // Derivación de clave segura PBKDF2
+    async function deriveKey(password, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+      );
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function processCrypto() {
+      const password = document.getElementById('secretKey').value;
+      const text = document.getElementById('inputText').value.trim();
+
+      if (!password || !text) {
+        showToast('Ingresa la llave y el texto', true);
+        return;
+      }
+
+      try {
+        if (currentMode === 'encrypt') {
+          const enc = new TextEncoder();
+          const salt = crypto.getRandomValues(new Uint8Array(16));
+          const iv = crypto.getRandomValues(new Uint8Array(12));
+          const key = await deriveKey(password, salt);
+          const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(text));
+
+          // Empaquetar Salt (16B) + IV (12B) + Ciphertext
+          const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+          combined.set(salt, 0);
+          combined.set(iv, salt.length);
+          combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+
+          document.getElementById('outputText').value = btoa(String.fromCharCode(...combined));
+          showToast('Cifrado AES-256 completado');
+        } else {
+          const combined = Uint8Array.from(atob(text), c => c.charCodeAt(0));
+          const salt = combined.slice(0, 16);
+          const iv = combined.slice(16, 28);
+          const data = combined.slice(28);
+
+          const key = await deriveKey(password, salt);
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+          document.getElementById('outputText').value = new TextDecoder().decode(decrypted);
+          showToast('Mensaje descifrado');
+        }
+      } catch (e) {
+        showToast('Error: Llave incorrecta o bloque corrupto', true);
+      }
+    }
+
+    function copyOutput() {
+      const out = document.getElementById('outputText');
+      if (!out.value) return;
+      navigator.clipboard.writeText(out.value);
+      showToast('Copiado al portapapeles');
+    }
+
+    async function zeroTraceWipe() {
+      document.getElementById('secretKey').value = '';
+      document.getElementById('inputText').value = '';
+      document.getElementById('outputText').value = '';
+      try { await navigator.clipboard.writeText(''); } catch (e) {}
+      showToast('Memoria y portapapeles purgados');
+    }
+  </script>
+</body>
+</html>
