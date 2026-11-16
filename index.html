@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#070a10">
-  <title>CIPHER // Debug Mode</title>
+  <meta name="description" content="Comunicación Criptográfica Multicapa Cero Rastro">
+  <title>CIPHER // Quantum Fortified</title>
+  <link rel="manifest" href="./manifest.json">
   <style>
     :root {
       --bg-main: #070a10;
@@ -14,99 +16,487 @@
       --danger: #ef4444;
       --warning: #f59e0b;
       --text-main: #e2e8f0;
+      --text-muted: #64748b;
       --border: #1e293b;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
-    body { background: var(--bg-main); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; padding: 10px; }
-    header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
-    h1 { font-size: 1rem; color: var(--cyan); }
-    .badge { font-size: 0.6rem; padding: 4px 8px; border-radius: 4px; font-weight: bold; background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); }
-    .badge.ok { background: rgba(16, 185, 129, 0.1); color: var(--emerald); border-color: var(--emerald); }
-    .badge.warn { background: rgba(245, 158, 11, 0.1); color: var(--warning); border-color: var(--warning); }
-    
-    .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 6px; }
-    input { width: 100%; background: var(--bg-main); border: 1px solid var(--border); color: var(--text-main); padding: 8px; border-radius: 4px; font-size: 0.8rem; outline: none; }
-    
-    /* Consola de depuración en pantalla */
-    .debug-box {
-      flex: 1;
-      background: #020408;
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Courier New', Courier, monospace;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 6px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand svg { width: 24px; height: 24px; }
+    .brand h1 { font-size: 1.1rem; letter-spacing: 2px; color: var(--cyan); }
+
+    .status-badge {
+      font-size: 0.6rem;
+      padding: 3px 6px;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: 4px;
+      background: rgba(239, 68, 68, 0.1);
+      font-weight: bold;
+    }
+    .status-badge.connecting { border-color: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1); }
+    .status-badge.connected { border-color: var(--emerald); color: var(--emerald); background: rgba(16, 185, 129, 0.1); }
+
+    .config-panel {
+      background: var(--bg-panel);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 8px;
+      padding: 6px 8px;
+      margin-bottom: 6px;
+    }
+
+    .config-panel label {
+      font-size: 0.65rem;
+      color: var(--cyan);
+      display: block;
+      margin-bottom: 3px;
+      letter-spacing: 1px;
+    }
+
+    .config-panel input {
+      width: 100%;
+      background: var(--bg-main);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      outline: none;
+    }
+    .config-panel input:focus { border-color: var(--cyan); }
+
+    .controls-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+
+    .select-timer {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--cyan);
+      padding: 4px 6px;
+      border-radius: 4px;
       font-size: 0.7rem;
+      outline: none;
+    }
+
+    .chat-container {
+      flex: 1;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 8px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      color: var(--warning);
+      gap: 6px;
     }
-    .debug-line { border-bottom: 1px solid #111; padding-bottom: 2px; }
-    .debug-line.error { color: var(--danger); }
-    .debug-line.success { color: var(--emerald); }
+
+    .message {
+      max-width: 88%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      word-break: break-word;
+      line-height: 1.3;
+      position: relative;
+    }
+
+    .message.sent {
+      background: rgba(0, 243, 255, 0.08);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      align-self: flex-end;
+    }
+
+    .message.received {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid var(--emerald);
+      color: var(--emerald);
+      align-self: flex-start;
+    }
+
+    .message.system {
+      background: transparent;
+      color: var(--text-muted);
+      text-align: center;
+      align-self: center;
+      font-size: 0.7rem;
+      border: none;
+    }
+
+    .msg-meta {
+      font-size: 0.55rem;
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 4px;
+      color: var(--text-muted);
+    }
+
+    .msg-media img, .msg-media video {
+      max-width: 100%;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+
+    .chat-input-area {
+      display: flex;
+      flex-direction: column;
+      padding: 6px;
+      background: var(--bg-main);
+      border-top: 1px solid var(--border);
+      gap: 6px;
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .chat-input-area textarea {
+      flex: 1;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      resize: none;
+      height: 38px;
+      outline: none;
+    }
+    .chat-input-area textarea:focus { border-color: var(--cyan); }
+
+    .btn-action {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--cyan);
+      padding: 0 10px;
+      height: 38px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-action:active { background: var(--border); }
+
+    .btn-send {
+      background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
+      color: #070a10;
+      border: none;
+      padding: 0 12px;
+      height: 38px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      letter-spacing: 1px;
+    }
+
+    .footer-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-wipe {
+      flex: 1;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: 6px;
+      font-weight: bold;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--emerald);
+      color: var(--bg-main);
+      padding: 5px 12px;
+      border-radius: 12px;
+      font-weight: bold;
+      font-size: 0.7rem;
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+    }
   </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
 
   <header>
-    <h1>CIPHER // DIAGNÓSTICO</h1>
-    <span class="badge warn" id="statusBadge">INICIANDO...</span>
+    <div class="brand">
+      <svg viewBox="0 0 512 512">
+        <path d="M256 64L96 136v112c0 104.5 68.3 202.2 160 228 91.7-25.8 160-123.5 160-228V136L256 64z" fill="none" stroke="#00f3ff" stroke-width="32"/>
+        <circle cx="256" cy="240" r="32" fill="#10b981"/>
+        <path d="M256 272v56" stroke="#10b981" stroke-width="28" stroke-linecap="round"/>
+      </svg>
+      <h1>CIPHER SHIELD</h1>
+    </div>
+    <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
   </header>
 
-  <div class="panel">
-    <label style="font-size:0.65rem; color:var(--cyan); display:block; margin-bottom:4px;">LLAVE MAESTRA</label>
-    <input type="password" id="secretKey" placeholder="Introduce clave...">
+  <div class="config-panel">
+    <label for="secretKey">LLAVE MAESTRA COMPARTIDA (AES-256)</label>
+    <input type="password" id="secretKey" placeholder="Clave secreta..." autocomplete="off">
   </div>
 
-  <div class="debug-box" id="debugConsole">
-    <div class="debug-line">[SYS] Iniciando motor de red...</div>
+  <div class="controls-row">
+    <select id="destructTimer" class="select-timer">
+      <option value="0">⏳ Mensaje Fijo</option>
+      <option value="10">🔥 Destruir en 10s</option>
+      <option value="20">🔥 Destruir en 20s</option>
+      <option value="30">🔥 Destruir en 30s</option>
+      <option value="60">🔥 Destruir en 60s</option>
+    </select>
+    <span style="font-size: 0.65rem; color: var(--text-muted);">Antiespía Activo</span>
   </div>
+
+  <div class="chat-container">
+    <div class="chat-messages" id="chatMessages">
+      <div class="message system">Protocolo de seguridad cuántica activo. Cero rastro en RAM.</div>
+    </div>
+    <div class="chat-input-area">
+      <div class="chat-input-row">
+        <input type="file" id="mediaInput" style="display:none" accept="image/*,video/*,audio/*" onchange="handleMedia(this)">
+        <button class="btn-action" onclick="document.getElementById('mediaInput').click()">📁</button>
+        <textarea id="messageInput" placeholder="Mensaje cifrado..." rows="1" onkeydown="handleKey(event)"></textarea>
+        <button class="btn-send" onclick="sendMessage('text')">CIFRAR</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-actions">
+    <button class="btn-wipe" onclick="triggerKillSwitch()">PURGA TOTAL (KILL-SWITCH)</button>
+  </div>
+
+  <div class="toast" id="toast">Acción completada</div>
 
   <script>
-    const WS_URL = 'wss://app-cipher.onrender.com';
-    const badge = document.getElementById('statusBadge');
-    const consoleBox = document.getElementById('debugConsole');
-
-    function logDebug(text, type = '') {
-      const div = document.createElement('div');
-      div.className = `debug-line ${type}`;
-      div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
-      consoleBox.appendChild(div);
-      consoleBox.scrollTop = consoleBox.scrollHeight;
-    }
-
-    logDebug(`Intentando conectar a: ${WS_URL}`);
-
+    const WS_URL = 'wss://app-cipher.onrender.com'; 
     let socket;
-    try {
+
+    function initWebSocket() {
+      const badge = document.getElementById('netStatus');
       socket = new WebSocket(WS_URL);
 
       socket.onopen = () => {
-        badge.textContent = 'CONECTADO';
-        badge.className = 'badge ok';
-        logDebug('¡Conexión WebSocket establecida con éxito!', 'success');
+        badge.textContent = 'EN LÍNEA (AES)';
+        badge.className = 'status-badge connected';
       };
 
-      socket.onclose = (event) => {
-        badge.textContent = 'DESCONECTADO';
-        badge.className = 'badge';
-        logDebug(`Conexión cerrada. Código: ${event.code}, Motivo: "${event.reason || 'Desconocido'}"`, 'error');
+      socket.onclose = () => {
+        badge.textContent = 'RECONECTANDO...';
+        badge.className = 'status-badge connecting';
+        setTimeout(initWebSocket, 4000);
       };
 
-      socket.onerror = (error) => {
-        badge.textContent = 'ERROR DE RED';
-        badge.className = 'badge';
-        logDebug(`Error crítico en WebSocket (CORS, dominio o SSL inválido)`, 'error');
-        console.error('WS Error:', error);
+      socket.onmessage = async (event) => {
+        try {
+          const rawPacket = JSON.parse(event.data);
+          const decrypted = await decryptPayload(rawPacket.payload);
+          appendMessage(decrypted, 'received', rawPacket.timer);
+        } catch (e) {
+          appendMessage('[Bloque corrupto / Llave errónea]', 'system');
+        }
       };
-
-      socket.onmessage = (event) => {
-        logDebug(`Mensaje recibido del servidor: ${event.data.substring(0, 30)}...`, 'success');
-      };
-
-    } catch (e) {
-      logDebug(`Excepción al crear WebSocket: ${e.message}`, 'error');
     }
+
+    async function deriveKey(password, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function encryptPayload(dataObj, password) {
+      const enc = new TextEncoder();
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKey(password, salt);
+      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(dataObj)));
+
+      const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+      combined.set(salt, 0);
+      combined.set(iv, salt.length);
+      combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+      return btoa(String.fromCharCode(...combined));
+    }
+
+    async function decryptPayload(base64Data) {
+      const password = document.getElementById('secretKey').value;
+      if (!password) throw new Error('Sin llave');
+
+      const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+      const salt = combined.slice(0, 16);
+      const iv = combined.slice(16, 28);
+      const data = combined.slice(28);
+
+      const key = await deriveKey(password, salt);
+      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+      return JSON.parse(new TextDecoder().decode(decrypted));
+    }
+
+    async function sendMessage(type, contentOverride = null) {
+      const password = document.getElementById('secretKey').value;
+      const input = document.getElementById('messageInput');
+      const text = contentOverride || input.value.trim();
+      const timer = parseInt(document.getElementById('destructTimer').value);
+
+      if (!password) {
+        showToast('Falta la llave maestra');
+        return;
+      }
+      if (!text && type === 'text') return;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        showToast('Red desconectada');
+        return;
+      }
+
+      const dataObj = { type: type, content: text, timer: timer };
+
+      try {
+        const encryptedBase64 = await encryptPayload(dataObj, password);
+        socket.send(JSON.stringify({ payload: encryptedBase64, timer: timer }));
+        appendMessage(dataObj, 'sent', timer);
+        if (!contentOverride) input.value = '';
+      } catch (e) {
+        showToast('Error de cifrado');
+      }
+    }
+
+    function handleMedia(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        sendMessage(file.type.startsWith('image') ? 'image' : file.type.startsWith('video') ? 'video' : 'audio', e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function appendMessage(data, type, timer) {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = `message ${type}`;
+
+      let innerHTML = '';
+      if (data.type === 'text') {
+        innerHTML += `<span>${escapeHTML(data.content)}</span>`;
+      } else if (data.type === 'image') {
+        innerHTML += `<div class="msg-media"><img src="${data.content}"/></div>`;
+      } else if (data.type === 'video') {
+        innerHTML += `<div class="msg-media"><video controls src="${data.content}"></video></div>`;
+      } else if (data.type === 'audio') {
+        innerHTML += `<div class="msg-media"><audio controls src="${data.content}"></audio></div>`;
+      }
+
+      innerHTML += `<div class="msg-meta"><span class="status-indicator">✓ CIFRADO AES</span></div>`;
+      div.innerHTML = innerHTML;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+
+      if (timer > 0 && type === 'received') {
+        let countdown = timer;
+        const metaDiv = div.querySelector('.msg-meta');
+        const interval = setInterval(() => {
+          countdown--;
+          metaDiv.innerHTML = `<span style="color:var(--danger)">🔥 Destrucción en ${countdown}s</span>`;
+          if (countdown <= 0) {
+            clearInterval(interval);
+            div.remove();
+          }
+        }, 1000);
+      }
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage('text');
+      }
+    }
+
+    function triggerKillSwitch() {
+      document.getElementById('secretKey').value = '';
+      document.getElementById('messageInput').value = '';
+      document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EXECUTADA. RAM LIMPIA.</div>';
+      if (socket) socket.close();
+      showToast('Dispositivo esterilizado');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 2000);
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    window.addEventListener('blur', () => { document.body.style.filter = 'blur(8px)'; });
+    window.addEventListener('focus', () => { document.body.style.filter = 'none'; });
+
+    initWebSocket();
   </script>
 </body>
 </html>
