@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#070a10">
   <meta name="description" content="Comunicación Criptográfica Multicapa Cero Rastro">
-  <title>CIPHER // Red Segura</title>
+  <title>CIPHER // Red Segura en Tiempo Real</title>
   <link rel="manifest" href="./manifest.json">
   <style>
     :root {
@@ -14,6 +14,7 @@
       --cyan: #00f3ff;
       --emerald: #10b981;
       --danger: #ef4444;
+      --warning: #f59e0b;
       --text-main: #e2e8f0;
       --text-muted: #64748b;
       --border: #1e293b;
@@ -57,11 +58,17 @@
 
     .status-badge {
       font-size: 0.65rem;
-      padding: 3px 6px;
+      padding: 4px 8px;
       border: 1px solid var(--danger);
       color: var(--danger);
       border-radius: 4px;
       background: rgba(239, 68, 68, 0.1);
+      font-weight: bold;
+    }
+    .status-badge.connecting {
+      border-color: var(--warning);
+      color: var(--warning);
+      background: rgba(245, 158, 11, 0.1);
     }
     .status-badge.connected {
       border-color: var(--emerald);
@@ -82,6 +89,7 @@
       color: var(--cyan);
       display: block;
       margin-bottom: 4px;
+      letter-spacing: 1px;
     }
 
     .config-panel input {
@@ -94,6 +102,7 @@
       font-size: 0.85rem;
       outline: none;
     }
+    .config-panel input:focus { border-color: var(--cyan); }
 
     .chat-container {
       flex: 1;
@@ -122,6 +131,12 @@
       font-size: 0.85rem;
       word-break: break-word;
       line-height: 1.3;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .message.sent {
@@ -149,9 +164,15 @@
 
     .chat-input-area {
       display: flex;
+      flex-direction: column;
       padding: 8px;
       background: var(--bg-main);
       border-top: 1px solid var(--border);
+      gap: 6px;
+    }
+
+    .chat-input-row {
+      display: flex;
       gap: 8px;
     }
 
@@ -164,20 +185,24 @@
       border-radius: 4px;
       font-size: 0.85rem;
       resize: none;
-      height: 40px;
+      height: 45px;
       outline: none;
     }
+    .chat-input-area textarea:focus { border-color: var(--cyan); }
 
     .btn-send {
-      background: var(--cyan);
-      color: var(--bg-main);
+      background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
+      color: #070a10;
       border: none;
       padding: 0 16px;
       font-weight: bold;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+      transition: opacity 0.2s;
     }
+    .btn-send:active { opacity: 0.8; }
 
     .footer-actions {
       display: flex;
@@ -210,6 +235,7 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.3s;
+      z-index: 1000;
     }
     .toast.show { opacity: 1; }
   </style>
@@ -223,23 +249,25 @@
         <circle cx="256" cy="240" r="32" fill="#10b981"/>
         <path d="M256 272v56" stroke="#10b981" stroke-width="28" stroke-linecap="round"/>
       </svg>
-      <h1>CIPHER MESH</h1>
+      <h1>CIPHER</h1>
     </div>
-    <span class="status-badge" id="netStatus">DESCONECTADO</span>
+    <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
   </header>
 
   <div class="config-panel">
     <label for="secretKey">LLAVE MAESTRA COMPARTIDA (SESIÓN)</label>
-    <input type="password" id="secretKey" placeholder="Introduce la clave secreta..." autocomplete="off">
+    <input type="password" id="secretKey" placeholder="Introduce la clave secreta compartida..." autocomplete="off">
   </div>
 
   <div class="chat-container">
     <div class="chat-messages" id="chatMessages">
-      <div class="message system">Canal seguro inicializado. Esperando mensajes cifrados...</div>
+      <div class="message system">Canal seguro inicializado. Esperando conexión al nodo...</div>
     </div>
     <div class="chat-input-area">
-      <textarea id="messageInput" placeholder="Escribe un mensaje cifrado..." rows="1" onkeydown="handleKey(event)"></textarea>
-      <button class="btn-send" onclick="sendMessage()">ENVIAR</button>
+      <div class="chat-input-row">
+        <textarea id="messageInput" placeholder="Escribe tu mensaje confidencial..." rows="1" onkeydown="handleKey(event)"></textarea>
+        <button class="btn-send" onclick="sendMessage()">CIFRAR Y ENVIAR</button>
+      </div>
     </div>
   </div>
 
@@ -252,21 +280,32 @@
   <script>
     const WS_URL = 'wss://app-cipher.onrender.com'; 
     let socket;
+    let reconnectAttempts = 0;
 
     function initWebSocket() {
+      const badge = document.getElementById('netStatus');
+      badge.textContent = reconnectAttempts === 0 ? 'CONECTANDO...' : 'RECONECTANDO...';
+      badge.className = 'status-badge connecting';
+
       socket = new WebSocket(WS_URL);
 
       socket.onopen = () => {
-        const badge = document.getElementById('netStatus');
+        reconnectAttempts = 0;
         badge.textContent = 'EN LÍNEA (AES)';
-        badge.classList.add('connected');
+        badge.className = 'status-badge connected';
+        showToast('Conectado al servidor seguro');
       };
 
       socket.onclose = () => {
-        const badge = document.getElementById('netStatus');
-        badge.textContent = 'DESCONECTADO';
-        badge.classList.remove('connected');
-        setTimeout(initWebSocket, 5000);
+        badge.textContent = 'DESPERTANDO SERVIDOR...';
+        badge.className = 'status-badge connecting';
+        reconnectAttempts++;
+        // Reintento automático inteligente (respalda si el servidor gratuito duerme)
+        setTimeout(initWebSocket, 4000);
+      };
+
+      socket.onerror = (err) => {
+        console.error('Error de red WS:', err);
       };
 
       socket.onmessage = async (event) => {
@@ -275,7 +314,7 @@
           const decrypted = await decryptMessage(cipherText);
           appendMessage(decrypted, 'received');
         } catch (e) {
-          appendMessage('[Bloque corrupto o llave incorrecta]', 'system');
+          appendMessage('[Bloque recibido con llave distinta o corrupto]', 'system');
         }
       };
     }
@@ -326,13 +365,13 @@
       const text = input.value.trim();
 
       if (!password) {
-        showToast('Falta la llave maestra', true);
+        showToast('Ingresa la llave maestra primero', true);
         return;
       }
       if (!text) return;
 
       if (!socket || socket.readyState !== WebSocket.OPEN) {
-        showToast('Sin conexión con el servidor', true);
+        showToast('Servidor despertando, espera un momento...', true);
         return;
       }
 
@@ -342,7 +381,7 @@
         appendMessage(text, 'sent');
         input.value = '';
       } catch (e) {
-        showToast('Error al cifrar mensaje', true);
+        showToast('Error al cifrar el mensaje', true);
       }
     }
 
@@ -367,16 +406,17 @@
       toast.textContent = msg;
       toast.style.background = isError ? '#ef4444' : '#10b981';
       toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2000);
+      setTimeout(() => toast.classList.remove('show'), 2500);
     }
 
     function purgeMemory() {
       document.getElementById('secretKey').value = '';
       document.getElementById('messageInput').value = '';
-      document.getElementById('chatMessages').innerHTML = '<div class="message system">Memoria purgada. Canal limpio.</div>';
+      document.getElementById('chatMessages').innerHTML = '<div class="message system">Memoria purgada. Cero rastros en RAM.</div>';
       showToast('Memoria purgada');
     }
 
+    // Iniciar conexión al cargar
     initWebSocket();
   </script>
 </body>
