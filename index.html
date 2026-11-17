@@ -69,7 +69,6 @@
     .status-badge.connecting { border-color: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1); }
     .status-badge.connected { border-color: var(--emerald); color: var(--emerald); background: rgba(16, 185, 129, 0.1); }
 
-    /* Vistas de la App */
     .view-screen {
       flex: 1;
       display: flex;
@@ -157,13 +156,21 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      cursor: pointer;
     }
-    .chat-item:active { border-color: var(--cyan); }
+    .chat-item-info { flex: 1; cursor: pointer; }
     .chat-item-info h4 { font-size: 0.85rem; color: var(--cyan); }
     .chat-item-info p { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; }
+    .btn-delete-chat {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      cursor: pointer;
+    }
 
-    /* Pantalla de Conversación Activa */
+    /* Conversación Activa */
     .chat-container {
       flex: 1;
       background: var(--bg-panel);
@@ -195,7 +202,6 @@
       cursor: pointer;
     }
 
-    /* Modal de Solicitud */
     .request-modal {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
@@ -271,17 +277,17 @@
     <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
   </header>
 
-  <!-- VISTA 1: AUTENTICACIÓN -->
+  <!-- VISTA 1: AUTENTICACIÓN / CLAVE MAESTRA -->
   <div id="authView" class="view-screen active">
     <div class="auth-container">
-      <h2>ACCESO BLINDADO</h2>
-      <p>Introduce tu Clave Maestra personal y exclusiva.</p>
-      <input type="password" id="masterKeyInput" placeholder="Clave maestra personal..." autocomplete="off">
-      <button class="btn-auth" onclick="unlockApp()">ACCEDER A LA RED</button>
+      <h2 id="authTitle">ACCESO BLINDADO</h2>
+      <p id="authDesc">Introduce tu Clave Maestra personal para desbloquear tus chats locales.</p>
+      <input type="password" id="masterKeyInput" placeholder="Clave maestra..." autocomplete="off">
+      <button class="btn-auth" onclick="handleMasterKey()">ACCEDER</button>
     </div>
   </div>
 
-  <!-- VISTA 2: INICIO (LISTA DE CHATS) -->
+  <!-- VISTA 2: INICIO (LISTA DE CHATS ESTILO WHATSAPP) -->
   <div id="homeView" class="view-screen">
     <div class="home-header">
       <span>MI CÓDIGO: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
@@ -292,7 +298,7 @@
     </div>
   </div>
 
-  <!-- VISTA 3: CONVERSACIÓN -->
+  <!-- VISTA 3: CONVERSACIÓN ACTIVA -->
   <div id="chatView" class="view-screen">
     <div class="chat-container">
       <div class="request-modal" id="requestModal">
@@ -316,7 +322,7 @@
       </div>
 
       <div class="chat-messages" id="chatMessages">
-        <div class="message system">Canal seguro cifrado con Clave Maestra.</div>
+        <div class="message system">Canal seguro cifrado.</div>
       </div>
 
       <div class="chat-input-area">
@@ -342,16 +348,28 @@
     let masterKey = '';
     let myCode = '';
     let currentTarget = '';
-    let chatsData = {};
+    let chatsData = {}; 
     let approvedChats = new Set();
     let pendingRequester = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-      myCode = 'NIIK_' + Math.random().toString(36).substring(2, 6).toUpperCase();
+      // Verificar si ya existe un código guardado en el dispositivo
+      let savedCode = localStorage.getItem('cipher_my_code');
+      if (!savedCode) {
+        savedCode = 'NIIK_' + Math.random().toString(36).substring(2, 6).toUpperCase();
+        localStorage.setItem('cipher_my_code', savedCode);
+      }
+      myCode = savedCode;
       document.getElementById('displayMyCode').textContent = myCode;
+
+      // Verificar si ya existe clave maestra configurada previamente
+      if (!localStorage.getItem('cipher_has_key')) {
+        document.getElementById('authTitle').textContent = "CREAR CLAVE MAESTRA";
+        document.getElementById('authDesc').textContent = "Crea tu contraseña maestra única. Nadie más podrá acceder a tus chats locales sin ella.";
+      }
     });
 
-    function unlockApp() {
+    function handleMasterKey() {
       const keyVal = document.getElementById('masterKeyInput').value.trim();
       if (!keyVal) {
         showToast('Introduce tu clave maestra');
@@ -360,11 +378,38 @@
       masterKey = keyVal;
       document.getElementById('masterKeyInput').value = '';
       
+      localStorage.setItem('cipher_has_key', 'true');
+
+      // Cargar chats guardados localmente
+      loadLocalChats();
+
       document.getElementById('authView').classList.remove('active');
       document.getElementById('homeView').classList.add('active');
       
       initWebSocket();
-      showToast('Sesión descifrada en RAM');
+      showToast('Sesión desbloqueada');
+    }
+
+    function loadLocalChats() {
+      try {
+        const savedChats = localStorage.getItem('cipher_chats_' + myCode);
+        const savedApproved = localStorage.getItem('cipher_approved_' + myCode);
+        if (savedChats) chatsData = JSON.parse(savedChats);
+        if (savedApproved) approvedChats = new Set(JSON.parse(savedApproved));
+      } catch (e) {
+        chatsData = {};
+        approvedChats = new Set();
+      }
+      renderChatList();
+    }
+
+    function saveLocalChats() {
+      try {
+        localStorage.setItem('cipher_chats_' + myCode, JSON.stringify(chatsData));
+        localStorage.setItem('cipher_approved_' + myCode, JSON.stringify([...approvedChats]));
+      } catch (e) {
+        console.error("Error guardando localmente");
+      }
     }
 
     function initWebSocket() {
@@ -386,17 +431,13 @@
           setTimeout(initWebSocket, 3000);
         };
 
-        socket.onerror = (err) => {
-          console.error("WS Error:", err);
-        };
-
         socket.onmessage = async (event) => {
           try {
             const rawPacket = JSON.parse(event.data);
 
             if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
               pendingRequester = rawPacket.from;
-              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere establecer un canal seguro contigo.`;
+              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro.`;
               document.getElementById('requestModal').style.display = 'flex';
               return;
             }
@@ -406,6 +447,7 @@
                 approvedChats.add(rawPacket.from);
                 ensureChatExists(rawPacket.from);
                 chatsData[rawPacket.from].approved = true;
+                saveLocalChats();
                 renderChatList();
                 showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
                 if (currentTarget === rawPacket.from) {
@@ -445,6 +487,7 @@
               sender: rawPacket.from,
               status: '●● LEÍDO'
             });
+            saveLocalChats();
 
             if (currentTarget === rawPacket.from) {
               appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from);
@@ -453,7 +496,7 @@
 
             renderChatList();
           } catch (e) {
-            console.error("Error descifrando paquete entrante");
+            console.error("Error procesando mensaje entrante");
           }
         };
       } catch (e) {
@@ -486,7 +529,7 @@
       document.getElementById('chatView').classList.add('active');
 
       const container = document.getElementById('chatMessages');
-      container.innerHTML = '<div class="message system">Canal seguro cifrado con Clave Maestra.</div>';
+      container.innerHTML = '<div class="message system">Historial seguro cargado.</div>';
       
       chatsData[code].messages.forEach(msg => {
         appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status);
@@ -515,16 +558,26 @@
         const preview = typeof lastMsg === 'string' ? (lastMsg.substring(0, 25) + '...') : '[Archivo Multimedia]';
         
         html += `
-          <div class="chat-item" onclick="openChat('${code}')">
-            <div class="chat-item-info">
+          <div class="chat-item">
+            <div class="chat-item-info" onclick="openChat('${code}')">
               <h4>[${code}]</h4>
               <p>${preview}</p>
             </div>
-            <span style="font-size:0.6rem; color:var(--emerald);">Activo</span>
+            <button class="btn-delete-chat" onclick="deleteChat('${code}')">Borrar</button>
           </div>
         `;
       });
       listEl.innerHTML = html;
+    }
+
+    function deleteChat(code) {
+      if (confirm(`¿Estás seguro de borrar el chat con [${code}]?`)) {
+        delete chatsData[code];
+        approvedChats.delete(code);
+        saveLocalChats();
+        renderChatList();
+        showToast('Chat eliminado');
+      }
     }
 
     function respondRequest(accepted) {
@@ -535,6 +588,7 @@
         approvedChats.add(pendingRequester);
         ensureChatExists(pendingRequester);
         chatsData[pendingRequester].approved = true;
+        saveLocalChats();
         showToast(`Canal abierto con [${pendingRequester}]`);
         renderChatList();
       }
@@ -612,6 +666,7 @@
       if (!approvedChats.has(currentTarget)) {
         const reqId = 'pending_req_' + currentTarget;
         chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE' });
+        saveLocalChats();
         appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE');
 
         socket.send(JSON.stringify({ type: 'chat_request', from: myCode, to: currentTarget }));
@@ -622,6 +677,7 @@
       }
 
       chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA' });
+      saveLocalChats();
       appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
 
       try {
@@ -629,6 +685,7 @@
         socket.send(JSON.stringify({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64 }));
         updateMessageStatus(msgId, '✓ ENVIADO');
         if (!contentOverride) input.value = '';
+        saveLocalChats();
         renderChatList();
       } catch (e) {
         showToast('Error de cifrado');
@@ -718,7 +775,9 @@
       masterKey = '';
       chatsData = {};
       approvedChats.clear();
-      document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EXECUTADA. RAM LIMPIA.</div>';
+      localStorage.removeItem('cipher_chats_' + myCode);
+      localStorage.removeItem('cipher_approved_' + myCode);
+      document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EXECUTADA. HISTORIAL BORRADO.</div>';
       if (socket) socket.close();
       document.getElementById('chatView').classList.remove('active');
       document.getElementById('homeView').classList.remove('active');
