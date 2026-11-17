@@ -78,7 +78,7 @@
     }
     .view-screen.active { display: flex; }
 
-    /* Pantalla de Autenticación / Clave Maestra */
+    /* Pantalla de Autenticación / Registro de Credenciales */
     .auth-container {
       flex: 1;
       display: flex;
@@ -92,7 +92,7 @@
       border-radius: 8px;
     }
     .auth-container h2 { color: var(--cyan); font-size: 1.1rem; margin-bottom: 10px; }
-    .auth-container p { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 20px; line-height: 1.4; }
+    .auth-container p { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 15px; line-height: 1.4; }
     .auth-container input {
       width: 100%;
       max-width: 280px;
@@ -104,7 +104,8 @@
       font-size: 0.9rem;
       outline: none;
       text-align: center;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
     }
     .auth-container input:focus { border-color: var(--cyan); }
     .btn-auth {
@@ -117,6 +118,7 @@
       cursor: pointer;
       font-size: 0.8rem;
       letter-spacing: 1px;
+      margin-top: 5px;
     }
 
     /* Pantalla de Inicio / Lista de Chats */
@@ -277,12 +279,13 @@
     <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
   </header>
 
-  <!-- VISTA 1: AUTENTICACIÓN / CLAVE MAESTRA -->
+  <!-- VISTA 1: CONFIGURAR / INGRESAR CLAVE Y CÓDIGO PROPIO -->
   <div id="authView" class="view-screen active">
     <div class="auth-container">
       <h2 id="authTitle">ACCESO BLINDADO</h2>
-      <p id="authDesc">Introduce tu Clave Maestra personal para descifrar tus chats.</p>
-      <input type="password" id="masterKeyInput" placeholder="Clave maestra..." autocomplete="off">
+      <p id="authDesc">Introduce tu Clave Maestra personal y tu Código Único.</p>
+      <input type="password" id="masterKeyInput" placeholder="Clave Maestra..." autocomplete="off">
+      <input type="text" id="customCodeInput" maxlength="6" placeholder="Tu Código Fijo (Ej. NIIKO)..." autocomplete="off" style="display:none;">
       <button class="btn-auth" onclick="handleMasterKey()">ACCEDER</button>
     </div>
   </div>
@@ -353,25 +356,22 @@
     let pendingRequester = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-      let savedCode = localStorage.getItem('cipher_my_code');
-      if (!savedCode) {
-        savedCode = 'NIIK_' + Math.random().toString(36).substring(2, 6).toUpperCase();
-        localStorage.setItem('cipher_my_code', savedCode);
-      }
-      myCode = savedCode;
-      document.getElementById('displayMyCode').textContent = myCode;
-
-      // Comprobar si ya existe un perfil de clave maestra creado
-      if (!localStorage.getItem('cipher_auth_salt')) {
-        document.getElementById('authTitle').textContent = "CREAR CLAVE MAESTRA";
-        document.getElementById('authDesc').textContent = "Define tu contraseña maestra exclusiva. Si la olvidas o introduces otra incorrecta, no podrás ver tus chats.";
+      const saltStored = localStorage.getItem('cipher_auth_salt');
+      if (!saltStored) {
+        document.getElementById('authTitle').textContent = "CREAR PERFIL SEGURO";
+        document.getElementById('authDesc').textContent = "Crea tu Clave Maestra y define tu Código Fijo de usuario (4-6 caracteres).";
+        document.getElementById('customCodeInput').style.display = 'block';
+      } else {
+        myCode = localStorage.getItem('cipher_my_code') || '';
       }
     });
 
     async function handleMasterKey() {
-      const keyVal = document.getElementById('masterKeyInput').value.trim();
+      const keyVal = document.getElementById('masterKeyInput'].value.trim();
+      const codeVal = document.getElementById('customCodeInput').value.trim().toUpperCase();
+
       if (!keyVal) {
-        showToast('Introduce tu clave maestra');
+        showToast('Introduce tu Clave Maestra');
         return;
       }
 
@@ -379,12 +379,18 @@
       const verifStored = localStorage.getItem('cipher_auth_verifier');
 
       if (!saltStored || !verifStored) {
-        // CREACIÓN DE NUEVA CLAVE MAESTRA
+        if (!codeVal || codeVal.length < 3) {
+          showToast('Define un Código Fijo válido (mín. 3 caracteres)');
+          return;
+        }
+
+        myCode = codeVal;
+        localStorage.setItem('cipher_my_code', myCode);
+
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const verifIv = crypto.getRandomValues(new Uint8Array(12));
         const key = await deriveKey(keyVal, salt);
         
-        // Cifrar un texto de verificación ("CIPHER_VALID") para comprobar la clave en el futuro
         const encryptedVerif = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: verifIv }, key, new TextEncoder().encode("CIPHER_VALID"));
         
         localStorage.setItem('cipher_auth_salt', btoa(String.fromCharCode(...salt)));
@@ -392,11 +398,11 @@
         
         masterKey = keyVal;
         document.getElementById('masterKeyInput').value = '';
+        document.getElementById('customCodeInput').value = '';
         loadLocalChats(keyVal);
         startAppSession();
-        showToast('Clave Maestra creada con éxito');
+        showToast('¡Perfil y Clave Maestra creados!');
       } else {
-        // VALIDACIÓN DE CLAVE MAESTRA EXISTENTE
         try {
           const salt = Uint8Array.from(atob(saltStored), c => c.charCodeAt(0));
           const [ivB64, dataB64] = verifStored.split(":");
@@ -410,6 +416,7 @@
           if (decryptedStr === "CIPHER_VALID") {
             masterKey = keyVal;
             document.getElementById('masterKeyInput').value = '';
+            myCode = localStorage.getItem('cipher_my_code');
             loadLocalChats(keyVal);
             startAppSession();
             showToast('Sesión desbloqueada');
@@ -424,6 +431,7 @@
     }
 
     function startAppSession() {
+      document.getElementById('displayMyCode').textContent = myCode;
       document.getElementById('authView').classList.remove('active');
       document.getElementById('homeView').classList.add('active');
       initWebSocket();
@@ -473,7 +481,7 @@
 
         localStorage.setItem('cipher_secure_vault_' + myCode, btoa(String.fromCharCode(...combined)));
       } catch (e) {
-        console.error("Error guardando bóveda cifrada");
+        console.error("Error guardando bóveda");
       }
     }
 
@@ -500,14 +508,20 @@
           try {
             const rawPacket = JSON.parse(event.data);
 
-            if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
+            // Filtrar estrictamente para que solo procese paquetes dirigidos a nuestro código
+            if (rawPacket.to && rawPacket.to !== myCode) return;
+
+            // 1. Solicitud de Chat Entrante (Handshake)
+            if (rawPacket.type === 'chat_request') {
               pendingRequester = rawPacket.from;
-              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro.`;
+              ensureChatExists(pendingRequester);
+              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro contigo.`;
               document.getElementById('requestModal').style.display = 'flex';
               return;
             }
 
-            if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
+            // 2. Respuesta de Solicitud de Chat
+            if (rawPacket.type === 'chat_response') {
               if (rawPacket.accepted) {
                 approvedChats.add(rawPacket.from);
                 ensureChatExists(rawPacket.from);
@@ -524,44 +538,46 @@
               return;
             }
 
-            if (rawPacket.type === 'ack' && rawPacket.target === myCode) {
+            // 3. ACKs (Entregado / Leído)
+            if (rawPacket.type === 'ack') {
               updateMessageStatus(rawPacket.msgId, rawPacket.status);
               return;
             }
 
-            if (rawPacket.to && rawPacket.to !== myCode) return;
+            // 4. Mensaje normal entrante
+            if (rawPacket.type === 'msg') {
+              if (!approvedChats.has(rawPacket.from)) {
+                pendingRequester = rawPacket.from;
+                document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
+                document.getElementById('requestModal').style.display = 'flex';
+                return;
+              }
 
-            if (rawPacket.type === 'msg' && !approvedChats.has(rawPacket.from)) {
-              pendingRequester = rawPacket.from;
-              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
-              document.getElementById('requestModal').style.display = 'flex';
-              return;
+              const decrypted = await decryptPayload(rawPacket.payload, masterKey);
+              ensureChatExists(rawPacket.from);
+              chatsData[rawPacket.from].approved = true;
+
+              sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
+
+              chatsData[rawPacket.from].messages.push({
+                data: decrypted,
+                type: 'received',
+                timer: decrypted.timer,
+                msgId: decrypted.id,
+                sender: rawPacket.from,
+                status: '●● LEÍDO'
+              });
+              saveLocalChats();
+
+              if (currentTarget === rawPacket.from) {
+                appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from);
+                setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
+              }
+
+              renderChatList();
             }
-
-            const decrypted = await decryptPayload(rawPacket.payload, masterKey);
-            ensureChatExists(rawPacket.from);
-            chatsData[rawPacket.from].approved = true;
-
-            sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
-
-            chatsData[rawPacket.from].messages.push({
-              data: decrypted,
-              type: 'received',
-              timer: decrypted.timer,
-              msgId: decrypted.id,
-              sender: rawPacket.from,
-              status: '●● LEÍDO'
-            });
-            saveLocalChats();
-
-            if (currentTarget === rawPacket.from) {
-              appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from);
-              setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
-            }
-
-            renderChatList();
           } catch (e) {
-            console.error("Error procesando mensaje entrante");
+            console.error("Error procesando paquete entrante");
           }
         };
       } catch (e) {
@@ -843,6 +859,7 @@
       localStorage.removeItem('cipher_secure_vault_' + myCode);
       localStorage.removeItem('cipher_auth_salt');
       localStorage.removeItem('cipher_auth_verifier');
+      localStorage.removeItem('cipher_my_code');
       document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EJECUTADA. BOVEDA DESTRUIDA.</div>';
       if (socket) socket.close();
       document.getElementById('chatView').classList.remove('active');
