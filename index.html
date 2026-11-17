@@ -38,7 +38,6 @@
       flex-direction: column;
       padding: 10px;
       overflow: hidden;
-      /* Capa de protección visual contra grabación rápida */
       -webkit-touch-callout: none;
     }
 
@@ -378,14 +377,21 @@
       }
     });
 
-    // Protección anti-captura / grabación (Desenfoque automático y ocultación si cambia la visibilidad)
-    window.addEventListener('blur', () => { 
-      document.body.style.filter = 'blur(15px)';
-      document.body.style.opacity = '0.1';
-    });
-    window.addEventListener('focus', () => { 
-      document.body.style.filter = 'none';
-      document.body.style.opacity = '1';
+    // Sincronización instantánea y reconexión inmediata al regresar a la app o enfocar la pestaña
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        document.body.style.filter = 'none';
+        document.body.style.opacity = '1';
+        if (myCode && (!socket || socket.readyState !== WebSocket.OPEN)) {
+          initWebSocket();
+        } else if (socket && socket.readyState === WebSocket.OPEN && myCode) {
+          // Re-enviar registro para forzar al servidor a descargar buzón offline acumulado
+          socket.send(JSON.stringify({ type: 'register', code: myCode }));
+        }
+      } else {
+        document.body.style.filter = 'blur(15px)';
+        document.body.style.opacity = '0.1';
+      }
     });
 
     function triggerAuth() {
@@ -522,6 +528,11 @@
       badge.className = 'status-badge connecting';
 
       try {
+        if (socket) {
+          socket.onclose = null;
+          socket.close();
+        }
+
         socket = new WebSocket(WS_URL);
 
         socket.onopen = () => {
@@ -535,8 +546,7 @@
         socket.onclose = () => {
           badge.textContent = 'RECONECTANDO...';
           badge.className = 'status-badge connecting';
-          // Reconexión agresiva instantánea para recuperar mensajes en segundo plano
-          setTimeout(initWebSocket, 1500);
+          setTimeout(initWebSocket, 2000);
         };
 
         socket.onmessage = async (event) => {
@@ -601,7 +611,6 @@
                 time: decrypted.time
               });
 
-              // Sonido y notificación ciega obligatoria al recibir
               playNotificationSound();
               triggerNotification(rawPacket.from);
 
@@ -627,7 +636,6 @@
       }
     }
 
-    // Generador sintético de sonido de notificación seguro (Web Audio API)
     function playNotificationSound() {
       try {
         if (!audioCtx) {
@@ -639,7 +647,7 @@
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Tono A5 agudo seguro
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.15);
         gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
@@ -648,11 +656,10 @@
         osc.start();
         osc.stop(audioCtx.currentTime + 0.15);
       } catch (e) {
-        console.log("Audio omitido por política del navegador");
+        console.log("Audio omitido");
       }
     }
 
-    // Notificación flotante ciega (No muestra contenido por privacidad)
     function triggerNotification(senderCode) {
       if ("Notification" in window && Notification.permission === "granted") {
         new Notification(`CIPHER // Nuevo Mensaje`, {
