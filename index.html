@@ -252,7 +252,7 @@
     .message.received { background: rgba(16, 185, 129, 0.08); border: 1px solid var(--emerald); color: var(--emerald); align-self: flex-start; }
     .message.system { background: transparent; color: var(--text-muted); text-align: center; align-self: center; font-size: 0.7rem; border: none; }
 
-    .msg-meta { font-size: 0.55rem; display: flex; justify-content: space-between; gap: 6px; margin-top: 4px; color: var(--text-muted); }
+    .msg-meta { font-size: 0.55rem; display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; color: var(--text-muted); }
     .msg-media img, .msg-media video { max-width: 100%; border-radius: 4px; margin-top: 4px; }
 
     .chat-input-area { display: flex; flex-direction: column; padding: 6px; background: var(--bg-main); border-top: 1px solid var(--border); gap: 6px; width: 100%; }
@@ -291,7 +291,7 @@
       <h2 id="authTitle">ACCESO BLINDADO</h2>
       <p id="authDesc">Introduce tu Clave Maestra personal y tu Código Único.</p>
       <input type="password" id="masterKeyInput" placeholder="Clave Maestra..." autocomplete="off">
-      <input type="text" id="customCodeInput" maxlength="6" placeholder="Tu Código Fijo (Ej. NIIKO)..." autocomplete="off" style="display:none;">
+      <input type="text" id="customCodeInput" maxlength="6" placeholder="Tu Código Fijo (Ej. OMAR)..." autocomplete="off" style="display:none;">
       <button class="btn-auth" onclick="triggerAuth()">ACCEDER</button>
     </div>
   </div>
@@ -329,7 +329,7 @@
       </div>
 
       <div class="chat-messages" id="chatMessages">
-        <div class="message system">Canal seguro cifrado con Clave Maestra.</div>
+        <div class="message system">Canal seguro cifrado con Llave Maestra.</div>
       </div>
 
       <div class="chat-input-area">
@@ -369,7 +369,6 @@
         myCode = localStorage.getItem('cipher_my_code') || '';
       }
       
-      // Solicitar permiso para notificaciones nativas del navegador
       if ("Notification" in window && Notification.permission !== "granted") {
         Notification.requestPermission();
       }
@@ -498,6 +497,12 @@
       }
     }
 
+    // Genera una contraseña de canal bilateral determinista basada en la Clave Maestra y los códigos participantes
+    async function getChannelSecret(partnerCode) {
+      const sortedCodes = [myCode, partnerCode].sort().join('_');
+      return masterKey + '_' + sortedCodes;
+    }
+
     function initWebSocket() {
       const badge = document.getElementById('netStatus');
       badge.textContent = 'CONECTANDO...';
@@ -554,7 +559,7 @@
               return;
             }
 
-            // Mensaje entrante descifrado con la Clave Maestra local del usuario
+            // Descifrado bidireccional usando la Clave Bilateral del canal
             if (rawPacket.type === 'msg' && rawPacket.to === myCode) {
               if (!approvedChats.has(rawPacket.from)) {
                 pendingRequester = rawPacket.from;
@@ -563,23 +568,24 @@
                 return;
               }
 
-              const decrypted = await decryptPayload(rawPacket.payload, masterKey);
+              const channelSecret = await getChannelSecret(rawPacket.from);
+              const decrypted = await decryptPayload(rawPacket.payload, channelSecret);
+              
               ensureChatExists(rawPacket.from);
               chatsData[rawPacket.from].approved = true;
 
               sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
 
-              // Registrar mensaje en el historial del chat
               chatsData[rawPacket.from].messages.push({
                 data: decrypted,
                 type: 'received',
                 timer: decrypted.timer,
                 msgId: decrypted.id,
                 sender: rawPacket.from,
-                status: '●● LEÍDO'
+                status: '●● LEÍDO',
+                time: decrypted.time
               });
 
-              // Incrementar contador de no leídos si no tenemos abierto este chat actualmente
               if (currentTarget !== rawPacket.from) {
                 chatsData[rawPacket.from].unread = (chatsData[rawPacket.from].unread || 0) + 1;
                 triggerNotification(rawPacket.from, decrypted.content);
@@ -588,14 +594,14 @@
               saveLocalChats();
 
               if (currentTarget === rawPacket.from) {
-                appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from);
+                appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from, '●● LEÍDO', decrypted.time);
                 setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
               }
 
               renderChatList();
             }
           } catch (e) {
-            console.error("Error procesando paquete entrante", e);
+            console.error("Error descifrando mensaje entrante bilateral", e);
           }
         };
       } catch (e) {
@@ -637,7 +643,6 @@
       currentTarget = code;
       ensureChatExists(code);
       
-      // Al abrir el chat, limpiar contador de no leídos
       chatsData[code].unread = 0;
       saveLocalChats();
 
@@ -646,10 +651,10 @@
       document.getElementById('chatView').classList.add('active');
 
       const container = document.getElementById('chatMessages');
-      container.innerHTML = '<div class="message system">Historial seguro cargado. Cifrado por Clave Maestra.</div>';
+      container.innerHTML = '<div class="message system">Historial seguro cargado.</div>';
       
       chatsData[code].messages.forEach(msg => {
-        appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status);
+        appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status, msg.time);
       });
       renderChatList();
     }
@@ -674,7 +679,7 @@
         const chat = chatsData[code];
         const msgs = chat.messages;
         const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].data.content : 'Canal establecido';
-        const preview = typeof lastMsg === 'string' ? (lastMsg.substring(0, 25) + '...') : '[Archivo Multimedia]';
+        const preview = typeof lastMsg === 'string' ? (lastMsg.substring(0, 22) + '...') : '[Archivo Multimedia]';
         const unreadBadge = chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : '';
         
         html += `
@@ -772,6 +777,8 @@
       const input = document.getElementById('messageInput');
       const text = contentOverride || input.value.trim();
       const timer = parseInt(document.getElementById('destructTimer').value);
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       if (!text && type === 'text') return;
       if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -781,13 +788,13 @@
 
       ensureChatExists(currentTarget);
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
-      const dataObj = { id: msgId, from: myCode, type: type, content: text, timer: timer };
+      const dataObj = { id: msgId, from: myCode, type: type, content: text, timer: timer, time: timeString };
 
       if (!approvedChats.has(currentTarget)) {
         const reqId = 'pending_req_' + currentTarget;
-        chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE' });
+        chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE', time: timeString });
         saveLocalChats();
-        appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE');
+        appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE', timeString);
 
         socket.send(JSON.stringify({ type: 'chat_request', from: myCode, to: currentTarget }));
         showToast('Solicitud de chat enviada');
@@ -796,13 +803,15 @@
         return;
       }
 
-      chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA' });
+      chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA', time: timeString });
       saveLocalChats();
-      appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
+      appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA', timeString);
 
       try {
-        // Cifrado directo usando tu propia Clave Maestra para que el destinatario la descifre al llegar
-        const encryptedBase64 = await encryptPayload(dataObj, masterKey);
+        // Cifrado simétrico bilateral derivado de las claves maestras de ambos socios
+        const channelSecret = await getChannelSecret(currentTarget);
+        const encryptedBase64 = await encryptPayload(dataObj, channelSecret);
+        
         socket.send(JSON.stringify({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64 }));
         updateMessageStatus(msgId, '✓ ENVIADO');
         if (!contentOverride) input.value = '';
@@ -840,7 +849,7 @@
       reader.readAsDataURL(file);
     }
 
-    function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO') {
+    function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO', msgTime = '') {
       const container = document.getElementById('chatMessages');
       const div = document.createElement('div');
       div.className = `message ${type}`;
@@ -857,8 +866,15 @@
         innerHTML += `<div class="msg-media"><audio controls src="${data.content}"></audio></div>`;
       }
 
+      const displayTime = msgTime || data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const metaLabel = type === 'sent' ? initialStatus : `De: ${senderCode}`;
-      innerHTML += `<div class="msg-meta"><span>${metaLabel}</span></div>`;
+      
+      innerHTML += `
+        <div class="msg-meta">
+          <span>${metaLabel}</span>
+          <span style="margin-left:auto; color:var(--text-muted);">${displayTime}</span>
+        </div>`;
+      
       div.innerHTML = innerHTML;
       container.appendChild(div);
       container.scrollTop = container.scrollHeight;
