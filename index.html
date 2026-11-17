@@ -271,31 +271,30 @@
     <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
   </header>
 
-  <!-- VISTA 1: AUTENTICACIÓN / CREAR O INGRESAR CLAVE MAESTRA -->
+  <!-- VISTA 1: AUTENTICACIÓN -->
   <div id="authView" class="view-screen active">
     <div class="auth-container">
       <h2>ACCESO BLINDADO</h2>
-      <p>Introduce tu Clave Maestra personal y exclusiva. Sin ella, ningún mensaje puede ser cifrado ni descifrado en este dispositivo.</p>
+      <p>Introduce tu Clave Maestra personal y exclusiva.</p>
       <input type="password" id="masterKeyInput" placeholder="Clave maestra personal..." autocomplete="off">
       <button class="btn-auth" onclick="unlockApp()">ACCEDER A LA RED</button>
     </div>
   </div>
 
-  <!-- VISTA 2: PANTALLA DE INICIO (ESTILO WHATSAPP CON LISTA DE CHATS) -->
+  <!-- VISTA 2: INICIO (LISTA DE CHATS) -->
   <div id="homeView" class="view-screen">
     <div class="home-header">
       <span>MI CÓDIGO: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
       <button class="btn-new-chat" onclick="openNewChatPrompt()">+ Nuevo Chat</button>
     </div>
     <div class="chat-list" id="chatList">
-      <div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos. Pulsa "+ Nuevo Chat" para contactar a alguien.</div>
+      <div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos. Pulsa "+ Nuevo Chat".</div>
     </div>
   </div>
 
-  <!-- VISTA 3: CONVERSACIÓN ACTIVA -->
+  <!-- VISTA 3: CONVERSACIÓN -->
   <div id="chatView" class="view-screen">
     <div class="chat-container">
-      <!-- Modal de Solicitud de Chat Entrante -->
       <div class="request-modal" id="requestModal">
         <h3>SOLICITUD DE CHAT ENTRANTE</h3>
         <p id="requestText">Un nodo quiere iniciar comunicación contigo.</p>
@@ -317,7 +316,7 @@
       </div>
 
       <div class="chat-messages" id="chatMessages">
-        <div class="message system">Canal seguro establecido en RAM.</div>
+        <div class="message system">Canal seguro cifrado con Clave Maestra.</div>
       </div>
 
       <div class="chat-input-area">
@@ -343,12 +342,11 @@
     let masterKey = '';
     let myCode = '';
     let currentTarget = '';
-    let chatsData = {}; // Estructura: { TARGET_CODE: { messages: [], approved: false } }
+    let chatsData = {};
     let approvedChats = new Set();
     let pendingRequester = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-      // Generar código fijo único en el dispositivo si no existe en sessionStorage volátil
       myCode = 'NIIK_' + Math.random().toString(36).substring(2, 6).toUpperCase();
       document.getElementById('displayMyCode').textContent = myCode;
     });
@@ -362,7 +360,6 @@
       masterKey = keyVal;
       document.getElementById('masterKeyInput').value = '';
       
-      // Cambiar a la vista de Inicio
       document.getElementById('authView').classList.remove('active');
       document.getElementById('homeView').classList.add('active');
       
@@ -372,91 +369,96 @@
 
     function initWebSocket() {
       const badge = document.getElementById('netStatus');
-      socket = new WebSocket(WS_URL);
+      badge.textContent = 'CONECTANDO...';
+      badge.className = 'status-badge connecting';
 
-      socket.onopen = () => {
-        badge.textContent = 'EN LÍNEA (AES)';
-        badge.className = 'status-badge connected';
-      };
+      try {
+        socket = new WebSocket(WS_URL);
 
-      socket.onclose = () => {
-        badge.textContent = 'RECONECTANDO...';
-        badge.className = 'status-badge connecting';
-        setTimeout(initWebSocket, 4000);
-      };
+        socket.onopen = () => {
+          badge.textContent = 'EN LÍNEA (AES)';
+          badge.className = 'status-badge connected';
+        };
 
-      socket.onmessage = async (event) => {
-        try {
-          const rawPacket = JSON.parse(event.data);
+        socket.onclose = () => {
+          badge.textContent = 'RECONECTANDO...';
+          badge.className = 'status-badge connecting';
+          setTimeout(initWebSocket, 3000);
+        };
 
-          // 1. Solicitud de Chat Entrante
-          if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
-            pendingRequester = rawPacket.from;
-            document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere establecer un canal seguro contigo.`;
-            document.getElementById('requestModal').style.display = 'flex';
-            return;
-          }
+        socket.onerror = (err) => {
+          console.error("WS Error:", err);
+        };
 
-          // 2. Respuesta de Solicitud
-          if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
-            if (rawPacket.accepted) {
-              approvedChats.add(rawPacket.from);
-              ensureChatExists(rawPacket.from);
-              chatsData[rawPacket.from].approved = true;
-              renderChatList();
-              showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
-              if (currentTarget === rawPacket.from) {
-                updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
-              }
-            } else {
-              showToast(`[${rawPacket.from}] rechazó el chat`);
+        socket.onmessage = async (event) => {
+          try {
+            const rawPacket = JSON.parse(event.data);
+
+            if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
+              pendingRequester = rawPacket.from;
+              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere establecer un canal seguro contigo.`;
+              document.getElementById('requestModal').style.display = 'flex';
+              return;
             }
-            return;
+
+            if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
+              if (rawPacket.accepted) {
+                approvedChats.add(rawPacket.from);
+                ensureChatExists(rawPacket.from);
+                chatsData[rawPacket.from].approved = true;
+                renderChatList();
+                showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
+                if (currentTarget === rawPacket.from) {
+                  updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
+                }
+              } else {
+                showToast(`[${rawPacket.from}] rechazó el chat`);
+              }
+              return;
+            }
+
+            if (rawPacket.type === 'ack' && rawPacket.target === myCode) {
+              updateMessageStatus(rawPacket.msgId, rawPacket.status);
+              return;
+            }
+
+            if (rawPacket.to && rawPacket.to !== myCode) return;
+
+            if (rawPacket.type === 'msg' && !approvedChats.has(rawPacket.from)) {
+              pendingRequester = rawPacket.from;
+              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
+              document.getElementById('requestModal').style.display = 'flex';
+              return;
+            }
+
+            const decrypted = await decryptPayload(rawPacket.payload, masterKey);
+            ensureChatExists(rawPacket.from);
+            chatsData[rawPacket.from].approved = true;
+
+            sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
+
+            chatsData[rawPacket.from].messages.push({
+              data: decrypted,
+              type: 'received',
+              timer: decrypted.timer,
+              msgId: decrypted.id,
+              sender: rawPacket.from,
+              status: '●● LEÍDO'
+            });
+
+            if (currentTarget === rawPacket.from) {
+              appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from);
+              setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
+            }
+
+            renderChatList();
+          } catch (e) {
+            console.error("Error descifrando paquete entrante");
           }
-
-          // 3. ACKs (Entregado / Leído)
-          if (rawPacket.type === 'ack' && rawPacket.target === myCode) {
-            updateMessageStatus(rawPacket.msgId, rawPacket.status);
-            return;
-          }
-
-          if (rawPacket.to && rawPacket.to !== myCode) return;
-
-          // 4. Mensaje Entrante
-          if (rawPacket.type === 'msg' && !approvedChats.has(rawPacket.from)) {
-            pendingRequester = rawPacket.from;
-            document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
-            document.getElementById('requestModal').style.display = 'flex';
-            return;
-          }
-
-          const decrypted = await decryptPayload(rawPacket.payload, masterKey);
-          ensureChatExists(rawPacket.from);
-          chatsData[rawPacket.from].approved = true;
-
-          sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
-
-          // Guardar en el historial del chat
-          chatsData[rawPacket.from].messages.push({
-            data: decrypted,
-            type: 'received',
-            timer: decrypted.timer,
-            msgId: decrypted.id,
-            sender: rawPacket.from,
-            status: '●● LEÍDO'
-          });
-
-          // Si estamos dentro de esta conversación, renderizarla de inmediato
-          if (currentTarget === rawPacket.from) {
-            appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from);
-            setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
-          }
-
-          renderChatList();
-        } catch (e) {
-          console.error("Error procesando mensaje / Clave errónea");
-        }
-      };
+        };
+      } catch (e) {
+        console.error("Excepción socket:", e);
+      }
     }
 
     function ensureChatExists(code) {
@@ -479,11 +481,10 @@
     function openChat(code) {
       currentTarget = code;
       ensureChatExists(code);
-      document.getElementById('activeChatTitle.textContent = `CHAT: ${code}`;
+      document.getElementById('activeChatTitle').textContent = `CHAT: ${code}`;
       document.getElementById('homeView').classList.remove('active');
       document.getElementById('chatView').classList.add('active');
 
-      // Cargar mensajes previos en pantalla
       const container = document.getElementById('chatMessages');
       container.innerHTML = '<div class="message system">Canal seguro cifrado con Clave Maestra.</div>';
       
@@ -608,7 +609,6 @@
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
       const dataObj = { id: msgId, from: myCode, type: type, content: text, timer: timer };
 
-      // Si no está aprobado, enviar solicitud ciega
       if (!approvedChats.has(currentTarget)) {
         const reqId = 'pending_req_' + currentTarget;
         chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE' });
@@ -621,7 +621,6 @@
         return;
       }
 
-      // Mensaje aprobado
       chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA' });
       appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
 
