@@ -101,6 +101,7 @@
       outline: none;
       text-align: center;
       letter-spacing: 1px;
+      text-transform: uppercase;
     }
     .config-panel input:focus { border-color: var(--cyan); }
 
@@ -132,7 +133,28 @@
       overflow: hidden;
       margin-bottom: 6px;
       min-height: 0;
+      position: relative;
     }
+
+    /* Modal de Solicitud de Chat Entrante */
+    .request-modal {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(7, 10, 16, 0.95);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      z-index: 500;
+      display: none;
+      text-align: center;
+    }
+    .request-modal h3 { color: var(--cyan); font-size: 1rem; margin-bottom: 10px; }
+    .request-modal p { font-size: 0.75rem; color: var(--text-main); margin-bottom: 15px; }
+    .modal-actions { display: flex; gap: 10px; width: 100%; max-width: 250px; }
+    .btn-accept { flex: 1; background: var(--emerald); color: var(--bg-main); border: none; padding: 8px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    .btn-reject { flex: 1; background: var(--danger); color: var(--text-main); border: none; padding: 8px; font-weight: bold; border-radius: 4px; cursor: pointer; }
 
     .chat-messages {
       flex: 1;
@@ -302,12 +324,12 @@
 
   <div class="config-panel">
     <div>
-      <label for="myCode">MI CÓDIGO (4-6 Dígitos)</label>
-      <input type="text" id="myCode" maxlength="6" placeholder="Ej. A78F">
+      <label for="myCode">MI CÓDIGO FIJO</label>
+      <input type="text" id="myCode" maxlength="6" value="NIIKO">
     </div>
     <div>
-      <label for="targetCode">DESTINO (CÓDIGO SOCIO)</label>
-      <input type="text" id="targetCode" maxlength="6" placeholder="Ej. B92K">
+      <label for="targetCode">DESTINO (SOCIO)</label>
+      <input type="text" id="targetCode" maxlength="6" placeholder="Ej. SOCIO">
     </div>
     <div class="full-w">
       <label for="secretKey">LLAVE MAESTRA COMPARTIDA (AES-256)</label>
@@ -323,12 +345,22 @@
       <option value="30">🔥 Destruir en 30s</option>
       <option value="60">🔥 Destruir en 60s</option>
     </select>
-    <span style="font-size: 0.65rem; color: var(--text-muted);">Antiespía Activo</span>
+    <span style="font-size: 0.65rem; color: var(--text-muted);">Blindaje Activo</span>
   </div>
 
   <div class="chat-container">
+    <!-- Modal de Solicitud de Chat -->
+    <div class="request-modal" id="requestModal">
+      <h3>SOLICITUD DE CHAT ENTRANTE</h3>
+      <p id="requestText">El nodo [????] quiere iniciar comunicación contigo.</p>
+      <div class="modal-actions">
+        <button class="btn-reject" onclick="respondRequest(false)">RECHAZAR</button>
+        <button class="btn-accept" onclick="respondRequest(true)">ACEPTAR</button>
+      </div>
+    </div>
+
     <div class="chat-messages" id="chatMessages">
-      <div class="message system">Protocolo de seguridad cuántica activo. Cero rastro en RAM.</div>
+      <div class="message system">Protocolo de consentimiento activo. Ningún mensaje se confirma sin aprobación.</div>
     </div>
     <div class="chat-input-area">
       <div class="chat-input-row">
@@ -349,12 +381,8 @@
   <script>
     const WS_URL = 'wss://app-cipher.onrender.com'; 
     let socket;
-
-    // Generar un código alfanumérico aleatorio de 4 dígitos si no existe en la sesión volátil
-    window.addEventListener('DOMContentLoaded', () => {
-      const randomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-      document.getElementById('myCode').value = randomCode;
-    });
+    let approvedChats = new Set(); // Lista de códigos con los que ya se aceptó el chat
+    let pendingRequester = null;
 
     function initWebSocket() {
       const badge = document.getElementById('netStatus');
@@ -374,40 +402,56 @@
       socket.onmessage = async (event) => {
         try {
           const rawPacket = JSON.parse(event.data);
-          const myCode = document.getElementById('myCode').value.trim();
+          const myCode = document.getElementById('myCode').value.trim().toUpperCase();
 
-          // Manejar acuses de recibo y lectura (ACKs)
-          if (rawPacket.type === 'ack') {
-            if (rawPacket.target === myCode || !rawPacket.target) {
-              updateMessageStatus(rawPacket.msgId, rawPacket.status);
+          // 1. Manejo de Solicitud de Chat (Handshake)
+          if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
+            pendingRequester = rawPacket.from;
+            document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere establecer un canal seguro contigo.`;
+            document.getElementById('requestModal').style.display = 'flex';
+            return;
+          }
+
+          // 2. Manejo de Respuesta de Solicitud (Aceptado/Rechazado)
+          if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
+            if (rawPacket.accepted) {
+              approvedChats.add(rawPacket.from);
+              showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
+              updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
+            } else {
+              showToast(`[${rawPacket.from}] rechazó la solicitud de chat`);
+              updateMessageStatus('pending_req_' + rawPacket.from, '❌ RECHAZADO');
             }
             return;
           }
 
-          // Verificar si el mensaje viene dirigido a nuestro código o es abierto
-          if (rawPacket.to && rawPacket.to !== myCode) {
-            return; // No es para nosotros, ignorar
+          // 3. Manejo de ACKs (Entregado / Leído)
+          if (rawPacket.type === 'ack' && rawPacket.target === myCode) {
+            updateMessageStatus(rawPacket.msgId, rawPacket.status);
+            return;
           }
 
-          const decrypted = await decryptPayload(rawPacket.payload);
-          
-          // Enviar acuse de ENTREGADO automático apenas se descifra en memoria RAM
-          sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
+          // 4. Filtrar mensajes dirigidos a nuestro código
+          if (rawPacket.to && rawPacket.to !== myCode) return;
 
-          // Mostrar mensaje recibido
+          // Si el chat no ha sido aprobado por nosotros previamente y llega un mensaje normal
+          if (rawPacket.type === 'msg' && !approvedChats.has(rawPacket.from)) {
+            pendingRequester = rawPacket.from;
+            document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación de chat.`;
+            document.getElementById('requestModal').style.display = 'flex';
+            return;
+          }
+
+          // Descifrar mensaje normal si ya está aprobado
+          const decrypted = await decryptPayload(rawPacket.payload);
+          sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
           appendMessage(decrypted, 'received', decrypted.timer, decrypted.id, decrypted.from);
 
-          // Si el mensaje no tiene autodestrucción inmediata, marcar como LEÍDO de inmediato al renderizar
-          if (decrypted.timer === 0) {
+          // Marcar como leído
+          setTimeout(() => {
             sendAck(decrypted.id, '●● LEÍDO', rawPacket.from);
             updateReceivedStatusToRead(decrypted.id);
-          } else {
-            // Si tiene temporizador, marcar como leído transcurrido 1 segundo de visualización
-            setTimeout(() => {
-              sendAck(decrypted.id, '●● LEÍDO', rawPacket.from);
-              updateReceivedStatusToRead(decrypted.id);
-            }, 1000);
-          }
+          }, 1000);
 
         } catch (e) {
           console.error(e);
@@ -415,10 +459,29 @@
       };
     }
 
+    function respondRequest(accepted) {
+      document.getElementById('requestModal').style.display = 'none';
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+      const myCode = document.getElementById('myCode').value.trim().toUpperCase();
+      if (accepted) {
+        approvedChats.add(pendingRequester);
+        showToast(`Canal abierto con [${pendingRequester}]`);
+      }
+
+      const responsePacket = {
+        type: 'chat_response',
+        from: myCode,
+        to: pendingRequester,
+        accepted: accepted
+      };
+      socket.send(JSON.stringify(responsePacket));
+      pendingRequester = null;
+    }
+
     function sendAck(msgId, statusText, targetCode) {
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
-      const ackPacket = { type: 'ack', msgId: msgId, status: statusText, target: targetCode };
-      socket.send(JSON.stringify(ackPacket));
+      socket.send(JSON.stringify({ type: 'ack', msgId: msgId, status: statusText, target: targetCode }));
     }
 
     async function deriveKey(password, salt) {
@@ -463,14 +526,18 @@
 
     async function sendMessage(type, contentOverride = null) {
       const password = document.getElementById('secretKey').value;
-      const myCode = document.getElementById('myCode').value.trim();
-      const targetCode = document.getElementById('targetCode').value.trim();
+      const myCode = document.getElementById('myCode').value.trim().toUpperCase();
+      const targetCode = document.getElementById('targetCode').value.trim().toUpperCase();
       const input = document.getElementById('messageInput');
       const text = contentOverride || input.value.trim();
       const timer = parseInt(document.getElementById('destructTimer').value);
 
       if (!password) {
         showToast('Falta la llave maestra');
+        return;
+      }
+      if (!targetCode) {
+        showToast('Indica el código de destino');
         return;
       }
       if (!text && type === 'text') return;
@@ -481,16 +548,31 @@
 
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
       const dataObj = { id: msgId, from: myCode, type: type, content: text, timer: timer };
-      
-      // Mostrar en pantalla propia con estado inicial de espera
+
+      // Si aún no hay chat aprobado con este destino, enviar como Solicitud Pendiente ciega
+      if (!approvedChats.has(targetCode)) {
+        const reqId = 'pending_req_' + targetCode;
+        appendMessage(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE');
+        
+        const requestPacket = {
+          type: 'chat_request',
+          from: myCode,
+          to: targetCode
+        };
+        socket.send(JSON.stringify(requestPacket));
+        showToast('Solicitud de chat enviada (Ciega)');
+        if (!contentOverride) input.value = '';
+        return;
+      }
+
+      // Si ya está aprobado, enviar mensaje cifrado normal
       appendMessage(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
 
       try {
         const encryptedBase64 = await encryptPayload(dataObj, password);
-        const packet = { to: targetCode, payload: encryptedBase64 };
+        const packet = { type: 'msg', from: myCode, to: targetCode, payload: encryptedBase64 };
         socket.send(JSON.stringify(packet));
         
-        // Actualizar a Enviado
         updateMessageStatus(msgId, '✓ ENVIADO');
         if (!contentOverride) input.value = '';
       } catch (e) {
@@ -502,7 +584,6 @@
     function handleMedia(input) {
       const file = input.files[0];
       if (!file) return;
-
       const reader = new FileReader();
       reader.onload = function(e) {
         if (file.type.startsWith('image')) {
@@ -514,18 +595,15 @@
             const MAX_HEIGHT = 500;
             let width = img.width;
             let height = img.height;
-
             if (width > height) {
               if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
             } else {
               if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
             }
-
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
             sendMessage('image', compressedDataUrl);
           };
@@ -554,7 +632,7 @@
       }
 
       const metaLabel = type === 'sent' ? initialStatus : `De: ${senderCode || 'Remitente'}`;
-      innerHTML += `<div class="msg-meta"><span>${metaLabel}</span><span class="status-indicator"></span></div>`;
+      innerHTML += `<div class="msg-meta"><span>${metaLabel}</span></div>`;
       div.innerHTML = innerHTML;
       container.appendChild(div);
       container.scrollTop = container.scrollHeight;
@@ -601,6 +679,7 @@
     function triggerKillSwitch() {
       document.getElementById('secretKey').value = '';
       document.getElementById('messageInput').value = '';
+      approvedChats.clear();
       document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EXECUTADA. RAM LIMPIA.</div>';
       if (socket) socket.close();
       showToast('Dispositivo esterilizado');
@@ -615,7 +694,7 @@
 
     function escapeHTML(str) {
       return str.replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '#' + 39, '"': '&quot;' }[tag] || tag)
       );
     }
 
