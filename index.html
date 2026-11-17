@@ -281,13 +281,13 @@
   <div id="authView" class="view-screen active">
     <div class="auth-container">
       <h2 id="authTitle">ACCESO BLINDADO</h2>
-      <p id="authDesc">Introduce tu Clave Maestra personal para desbloquear tus chats locales.</p>
+      <p id="authDesc">Introduce tu Clave Maestra personal para descifrar tus chats.</p>
       <input type="password" id="masterKeyInput" placeholder="Clave maestra..." autocomplete="off">
       <button class="btn-auth" onclick="handleMasterKey()">ACCEDER</button>
     </div>
   </div>
 
-  <!-- VISTA 2: INICIO (LISTA DE CHATS ESTILO WHATSAPP) -->
+  <!-- VISTA 2: INICIO (LISTA DE CHATS) -->
   <div id="homeView" class="view-screen">
     <div class="home-header">
       <span>MI CÓDIGO: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
@@ -353,7 +353,6 @@
     let pendingRequester = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-      // Verificar si ya existe un código guardado en el dispositivo
       let savedCode = localStorage.getItem('cipher_my_code');
       if (!savedCode) {
         savedCode = 'NIIK_' + Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -362,40 +361,94 @@
       myCode = savedCode;
       document.getElementById('displayMyCode').textContent = myCode;
 
-      // Verificar si ya existe clave maestra configurada previamente
-      if (!localStorage.getItem('cipher_has_key')) {
+      // Comprobar si ya existe un perfil de clave maestra creado
+      if (!localStorage.getItem('cipher_auth_salt')) {
         document.getElementById('authTitle').textContent = "CREAR CLAVE MAESTRA";
-        document.getElementById('authDesc').textContent = "Crea tu contraseña maestra única. Nadie más podrá acceder a tus chats locales sin ella.";
+        document.getElementById('authDesc').textContent = "Define tu contraseña maestra exclusiva. Si la olvidas o introduces otra incorrecta, no podrás ver tus chats.";
       }
     });
 
-    function handleMasterKey() {
+    async function handleMasterKey() {
       const keyVal = document.getElementById('masterKeyInput').value.trim();
       if (!keyVal) {
         showToast('Introduce tu clave maestra');
         return;
       }
-      masterKey = keyVal;
-      document.getElementById('masterKeyInput').value = '';
-      
-      localStorage.setItem('cipher_has_key', 'true');
 
-      // Cargar chats guardados localmente
-      loadLocalChats();
+      const saltStored = localStorage.getItem('cipher_auth_salt');
+      const verifStored = localStorage.getItem('cipher_auth_verifier');
 
-      document.getElementById('authView').classList.remove('active');
-      document.getElementById('homeView').classList.add('active');
-      
-      initWebSocket();
-      showToast('Sesión desbloqueada');
+      if (!saltStored || !verifStored) {
+        // CREACIÓN DE NUEVA CLAVE MAESTRA
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const verifIv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await deriveKey(keyVal, salt);
+        
+        // Cifrar un texto de verificación ("CIPHER_VALID") para comprobar la clave en el futuro
+        const encryptedVerif = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: verifIv }, key, new TextEncoder().encode("CIPHER_VALID"));
+        
+        localStorage.setItem('cipher_auth_salt', btoa(String.fromCharCode(...salt)));
+        localStorage.setItem('cipher_auth_verifier', btoa(String.fromCharCode(...verifIv)) + ":" + btoa(String.fromCharCode(...new Uint8Array(encryptedVerif))));
+        
+        masterKey = keyVal;
+        document.getElementById('masterKeyInput').value = '';
+        loadLocalChats(keyVal);
+        startAppSession();
+        showToast('Clave Maestra creada con éxito');
+      } else {
+        // VALIDACIÓN DE CLAVE MAESTRA EXISTENTE
+        try {
+          const salt = Uint8Array.from(atob(saltStored), c => c.charCodeAt(0));
+          const [ivB64, dataB64] = verifStored.split(":");
+          const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
+          const data = Uint8Array.from(atob(dataB64), c => c.charCodeAt(0));
+
+          const key = await deriveKey(keyVal, salt);
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+          const decryptedStr = new TextDecoder().decode(decrypted);
+
+          if (decryptedStr === "CIPHER_VALID") {
+            masterKey = keyVal;
+            document.getElementById('masterKeyInput').value = '';
+            loadLocalChats(keyVal);
+            startAppSession();
+            showToast('Sesión desbloqueada');
+          } else {
+            throw new Error("Clave incorrecta");
+          }
+        } catch (e) {
+          showToast('❌ Clave Maestra Incorrecta');
+          document.getElementById('masterKeyInput').value = '';
+        }
+      }
     }
 
-    function loadLocalChats() {
+    function startAppSession() {
+      document.getElementById('authView').classList.remove('active');
+      document.getElementById('homeView').classList.add('active');
+      initWebSocket();
+    }
+
+    async function loadLocalChats(password) {
       try {
-        const savedChats = localStorage.getItem('cipher_chats_' + myCode);
-        const savedApproved = localStorage.getItem('cipher_approved_' + myCode);
-        if (savedChats) chatsData = JSON.parse(savedChats);
-        if (savedApproved) approvedChats = new Set(JSON.parse(savedApproved));
+        const encryptedBlob = localStorage.getItem('cipher_secure_vault_' + myCode);
+        if (!encryptedBlob) {
+          chatsData = {};
+          approvedChats = new Set();
+          return;
+        }
+
+        const combined = Uint8Array.from(atob(encryptedBlob), c => c.charCodeAt(0));
+        const salt = combined.slice(0, 16);
+        const iv = combined.slice(16, 28);
+        const data = combined.slice(28);
+
+        const key = await deriveKey(password, salt);
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+        const parsed = JSON.parse(new TextDecoder().decode(decrypted));
+
+        chatsData = parsed.chats || {};
+        approvedChats = new Set(parsed.approved || []);
       } catch (e) {
         chatsData = {};
         approvedChats = new Set();
@@ -403,12 +456,24 @@
       renderChatList();
     }
 
-    function saveLocalChats() {
+    async function saveLocalChats() {
+      if (!masterKey) return;
       try {
-        localStorage.setItem('cipher_chats_' + myCode, JSON.stringify(chatsData));
-        localStorage.setItem('cipher_approved_' + myCode, JSON.stringify([...approvedChats]));
+        const payload = JSON.stringify({ chats: chatsData, approved: [...approvedChats] });
+        const enc = new TextEncoder();
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await deriveKey(masterKey, salt);
+        const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(payload));
+
+        const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+        combined.set(salt, 0);
+        combined.set(iv, salt.length);
+        combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+
+        localStorage.setItem('cipher_secure_vault_' + myCode, btoa(String.fromCharCode(...combined)));
       } catch (e) {
-        console.error("Error guardando localmente");
+        console.error("Error guardando bóveda cifrada");
       }
     }
 
@@ -775,9 +840,10 @@
       masterKey = '';
       chatsData = {};
       approvedChats.clear();
-      localStorage.removeItem('cipher_chats_' + myCode);
-      localStorage.removeItem('cipher_approved_' + myCode);
-      document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EXECUTADA. HISTORIAL BORRADO.</div>';
+      localStorage.removeItem('cipher_secure_vault_' + myCode);
+      localStorage.removeItem('cipher_auth_salt');
+      localStorage.removeItem('cipher_auth_verifier');
+      document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EJECUTADA. BOVEDA DESTRUIDA.</div>';
       if (socket) socket.close();
       document.getElementById('chatView').classList.remove('active');
       document.getElementById('homeView').classList.remove('active');
