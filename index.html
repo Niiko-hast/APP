@@ -75,13 +75,18 @@
       border-radius: 6px;
       padding: 6px 8px;
       margin-bottom: 6px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
     }
 
+    .config-panel .full-w { grid-column: span 2; }
+
     .config-panel label {
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       color: var(--cyan);
       display: block;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
       letter-spacing: 1px;
     }
 
@@ -90,10 +95,12 @@
       background: var(--bg-main);
       border: 1px solid var(--border);
       color: var(--text-main);
-      padding: 6px;
+      padding: 5px;
       border-radius: 4px;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       outline: none;
+      text-align: center;
+      letter-spacing: 1px;
     }
     .config-panel input:focus { border-color: var(--cyan); }
 
@@ -112,6 +119,7 @@
       border-radius: 4px;
       font-size: 0.7rem;
       outline: none;
+      flex: 1;
     }
 
     .chat-container {
@@ -171,8 +179,8 @@
     .msg-meta {
       font-size: 0.55rem;
       display: flex;
-      justify-content: flex-end;
-      gap: 4px;
+      justify-content: space-between;
+      gap: 6px;
       margin-top: 4px;
       color: var(--text-muted);
     }
@@ -202,7 +210,7 @@
 
     .chat-input-area textarea {
       flex: 1;
-      min-width: 0; /* Evita que el input se corte a la mitad en móviles */
+      min-width: 0;
       background: var(--bg-panel);
       border: 1px solid var(--border);
       color: var(--text-main);
@@ -293,8 +301,18 @@
   </header>
 
   <div class="config-panel">
-    <label for="secretKey">LLAVE MAESTRA COMPARTIDA (AES-256)</label>
-    <input type="password" id="secretKey" placeholder="Clave secreta..." autocomplete="off">
+    <div>
+      <label for="myCode">MI CÓDIGO (4-6 Dígitos)</label>
+      <input type="text" id="myCode" maxlength="6" placeholder="Ej. A78F">
+    </div>
+    <div>
+      <label for="targetCode">DESTINO (CÓDIGO SOCIO)</label>
+      <input type="text" id="targetCode" maxlength="6" placeholder="Ej. B92K">
+    </div>
+    <div class="full-w">
+      <label for="secretKey">LLAVE MAESTRA COMPARTIDA (AES-256)</label>
+      <input type="password" id="secretKey" placeholder="Clave secreta..." autocomplete="off">
+    </div>
   </div>
 
   <div class="controls-row">
@@ -332,6 +350,12 @@
     const WS_URL = 'wss://app-cipher.onrender.com'; 
     let socket;
 
+    // Generar un código alfanumérico aleatorio de 4 dígitos si no existe en la sesión volátil
+    window.addEventListener('DOMContentLoaded', () => {
+      const randomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+      document.getElementById('myCode').value = randomCode;
+    });
+
     function initWebSocket() {
       const badge = document.getElementById('netStatus');
       socket = new WebSocket(WS_URL);
@@ -350,12 +374,51 @@
       socket.onmessage = async (event) => {
         try {
           const rawPacket = JSON.parse(event.data);
+          const myCode = document.getElementById('myCode').value.trim();
+
+          // Manejar acuses de recibo y lectura (ACKs)
+          if (rawPacket.type === 'ack') {
+            if (rawPacket.target === myCode || !rawPacket.target) {
+              updateMessageStatus(rawPacket.msgId, rawPacket.status);
+            }
+            return;
+          }
+
+          // Verificar si el mensaje viene dirigido a nuestro código o es abierto
+          if (rawPacket.to && rawPacket.to !== myCode) {
+            return; // No es para nosotros, ignorar
+          }
+
           const decrypted = await decryptPayload(rawPacket.payload);
-          appendMessage(decrypted, 'received', rawPacket.timer);
+          
+          // Enviar acuse de ENTREGADO automático apenas se descifra en memoria RAM
+          sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
+
+          // Mostrar mensaje recibido
+          appendMessage(decrypted, 'received', decrypted.timer, decrypted.id, decrypted.from);
+
+          // Si el mensaje no tiene autodestrucción inmediata, marcar como LEÍDO de inmediato al renderizar
+          if (decrypted.timer === 0) {
+            sendAck(decrypted.id, '●● LEÍDO', rawPacket.from);
+            updateReceivedStatusToRead(decrypted.id);
+          } else {
+            // Si tiene temporizador, marcar como leído transcurrido 1 segundo de visualización
+            setTimeout(() => {
+              sendAck(decrypted.id, '●● LEÍDO', rawPacket.from);
+              updateReceivedStatusToRead(decrypted.id);
+            }, 1000);
+          }
+
         } catch (e) {
-          appendMessage('[Bloque corrupto / Llave errónea]', 'system');
+          console.error(e);
         }
       };
+    }
+
+    function sendAck(msgId, statusText, targetCode) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      const ackPacket = { type: 'ack', msgId: msgId, status: statusText, target: targetCode };
+      socket.send(JSON.stringify(ackPacket));
     }
 
     async function deriveKey(password, salt) {
@@ -400,6 +463,8 @@
 
     async function sendMessage(type, contentOverride = null) {
       const password = document.getElementById('secretKey').value;
+      const myCode = document.getElementById('myCode').value.trim();
+      const targetCode = document.getElementById('targetCode').value.trim();
       const input = document.getElementById('messageInput');
       const text = contentOverride || input.value.trim();
       const timer = parseInt(document.getElementById('destructTimer').value);
@@ -414,19 +479,26 @@
         return;
       }
 
-      const dataObj = { type: type, content: text, timer: timer };
+      const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
+      const dataObj = { id: msgId, from: myCode, type: type, content: text, timer: timer };
+      
+      // Mostrar en pantalla propia con estado inicial de espera
+      appendMessage(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
 
       try {
         const encryptedBase64 = await encryptPayload(dataObj, password);
-        socket.send(JSON.stringify({ payload: encryptedBase64, timer: timer }));
-        appendMessage(dataObj, 'sent', timer);
+        const packet = { to: targetCode, payload: encryptedBase64 };
+        socket.send(JSON.stringify(packet));
+        
+        // Actualizar a Enviado
+        updateMessageStatus(msgId, '✓ ENVIADO');
         if (!contentOverride) input.value = '';
       } catch (e) {
-        showToast('Error de cifrado / Archivo muy pesado');
+        showToast('Error de cifrado');
+        updateMessageStatus(msgId, '❌ ERROR');
       }
     }
 
-    // Compresión automática de imágenes para evitar saturar el cifrado AES en RAM
     function handleMedia(input) {
       const file = input.files[0];
       if (!file) return;
@@ -438,8 +510,8 @@
           img.src = e.target.result;
           img.onload = function() {
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 800;
-            const MAX_HEIGHT = 800;
+            const MAX_WIDTH = 500;
+            const MAX_HEIGHT = 500;
             let width = img.width;
             let height = img.height;
 
@@ -454,22 +526,21 @@
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
             
-            // Convertir a JPEG comprimido para que el cifrado AES lo procese sin problemas
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
             sendMessage('image', compressedDataUrl);
           };
         } else {
-          // Audio o video directo
           sendMessage(file.type.startsWith('video') ? 'video' : 'audio', e.target.result);
         }
       };
       reader.readAsDataURL(file);
     }
 
-    function appendMessage(data, type, timer) {
+    function appendMessage(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO') {
       const container = document.getElementById('chatMessages');
       const div = document.createElement('div');
       div.className = `message ${type}`;
+      if (msgId) div.id = msgId;
 
       let innerHTML = '';
       if (data.type === 'text') {
@@ -482,14 +553,15 @@
         innerHTML += `<div class="msg-media"><audio controls src="${data.content}"></audio></div>`;
       }
 
-      innerHTML += `<div class="msg-meta"><span class="status-indicator">✓ CIFRADO AES</span></div>`;
+      const metaLabel = type === 'sent' ? initialStatus : `De: ${senderCode || 'Remitente'}`;
+      innerHTML += `<div class="msg-meta"><span>${metaLabel}</span><span class="status-indicator"></span></div>`;
       div.innerHTML = innerHTML;
       container.appendChild(div);
       container.scrollTop = container.scrollHeight;
 
       if (timer > 0 && type === 'received') {
         let countdown = timer;
-        const metaDiv = div.querySelector('.msg-meta');
+        const metaDiv = div.querySelector('.msg-meta span');
         const interval = setInterval(() => {
           countdown--;
           metaDiv.innerHTML = `<span style="color:var(--danger)">🔥 Destrucción en ${countdown}s</span>`;
@@ -498,6 +570,24 @@
             div.remove();
           }
         }, 1000);
+      }
+    }
+
+    function updateMessageStatus(msgId, statusText) {
+      const el = document.getElementById(msgId);
+      if (el) {
+        const metaSpan = el.querySelector('.msg-meta span');
+        if (metaSpan) metaSpan.textContent = statusText;
+      }
+    }
+
+    function updateReceivedStatusToRead(msgId) {
+      const el = document.getElementById(msgId);
+      if (el) {
+        const metaSpan = el.querySelector('.msg-meta span');
+        if (metaSpan && !metaSpan.textContent.includes('Destrucción')) {
+          metaSpan.textContent = '●● LEÍDO';
+        }
       }
     }
 
