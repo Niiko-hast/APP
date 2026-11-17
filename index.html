@@ -547,8 +547,14 @@
                 return;
               }
 
-              const decrypted = await decryptPayload(rawPacket.payload, masterKey);
               ensureChatExists(rawPacket.from);
+              const chatSecret = chatsData[rawPacket.from].secret;
+              if (!chatSecret) {
+                showToast(`❌ Falta la Clave Secreta de este chat con [${rawPacket.from}]`);
+                return;
+              }
+
+              const decrypted = await decryptPayload(rawPacket.payload, chatSecret);
               chatsData[rawPacket.from].approved = true;
 
               sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
@@ -571,7 +577,8 @@
               renderChatList();
             }
           } catch (e) {
-            console.error("Error procesando paquete entrante", e);
+            console.error("Error procesando mensaje entrante (¿Clave secreta incorrecta?)", e);
+            showToast("❌ Error al descifrar mensaje (Verifica la Clave Secreta)");
           }
         };
       } catch (e) {
@@ -581,7 +588,16 @@
 
     function ensureChatExists(code) {
       if (!chatsData[code]) {
-        chatsData[code] = { messages: [], approved: approvedChats.has(code) };
+        chatsData[code] = { messages: [], approved: approvedChats.has(code), secret: '' };
+      }
+      if (!chatsData[code].secret) {
+        let defaultSecret = localStorage.getItem('cipher_chat_secret_' + code) || '';
+        if (!defaultSecret) {
+          defaultSecret = prompt(`Introduce la Clave Secreta compartida con [${code}] para este chat:`, "SECUREKEY");
+          if (!defaultSecret) defaultSecret = "CIPHER_DEFAULT_KEY";
+          localStorage.setItem('cipher_chat_secret_' + code, defaultSecret);
+        }
+        chatsData[code].secret = defaultSecret;
       }
     }
 
@@ -593,6 +609,7 @@
         showToast("No puedes chatear contigo mismo");
         return;
       }
+      ensureChatExists(target);
       openChat(target);
     }
 
@@ -604,7 +621,7 @@
       document.getElementById('chatView').classList.add('active');
 
       const container = document.getElementById('chatMessages');
-      container.innerHTML = '<div class="message system">Historial seguro cargado.</div>';
+      container.innerHTML = '<div class="message system">Historial seguro cargado. Canal cifrado con Clave de Canal.</div>';
       
       chatsData[code].messages.forEach(msg => {
         appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status);
@@ -649,6 +666,7 @@
       if (confirm(`¿Estás seguro de borrar el chat con [${code}]?`)) {
         delete chatsData[code];
         approvedChats.delete(code);
+        localStorage.removeItem('cipher_chat_secret_' + code);
         saveLocalChats();
         renderChatList();
         showToast('Chat eliminado');
@@ -756,7 +774,8 @@
       appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
 
       try {
-        const encryptedBase64 = await encryptPayload(dataObj, masterKey);
+        const chatSecret = chatsData[currentTarget].secret;
+        const encryptedBase64 = await encryptPayload(dataObj, chatSecret);
         socket.send(JSON.stringify({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64 }));
         updateMessageStatus(msgId, '✓ ENVIADO');
         if (!contentOverride) input.value = '';
@@ -850,10 +869,7 @@
       masterKey = '';
       chatsData = {};
       approvedChats.clear();
-      localStorage.removeItem('cipher_secure_vault_' + myCode);
-      localStorage.removeItem('cipher_auth_salt');
-      localStorage.removeItem('cipher_auth_verifier');
-      localStorage.removeItem('cipher_my_code');
+      localStorage.clear();
       document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EJECUTADA. BOVEDA DESTRUIDA.</div>';
       if (socket) socket.close();
       document.getElementById('chatView').classList.remove('active');
