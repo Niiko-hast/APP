@@ -69,60 +69,101 @@
     .status-badge.connecting { border-color: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1); }
     .status-badge.connected { border-color: var(--emerald); color: var(--emerald); background: rgba(16, 185, 129, 0.1); }
 
-    .config-panel {
+    /* Vistas de la App */
+    .view-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      display: none;
+    }
+    .view-screen.active { display: flex; }
+
+    /* Pantalla de Autenticación / Clave Maestra */
+    .auth-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      text-align: center;
       background: var(--bg-panel);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 8px;
-      margin-bottom: 6px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
+      border-radius: 8px;
     }
-
-    .config-panel .full-w { grid-column: span 2; }
-
-    .config-panel label {
-      font-size: 0.6rem;
-      color: var(--cyan);
-      display: block;
-      margin-bottom: 2px;
-      letter-spacing: 1px;
-    }
-
-    .config-panel input {
+    .auth-container h2 { color: var(--cyan); font-size: 1.1rem; margin-bottom: 10px; }
+    .auth-container p { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 20px; line-height: 1.4; }
+    .auth-container input {
       width: 100%;
+      max-width: 280px;
       background: var(--bg-main);
       border: 1px solid var(--border);
       color: var(--text-main);
-      padding: 5px;
+      padding: 10px;
       border-radius: 4px;
-      font-size: 0.75rem;
+      font-size: 0.9rem;
       outline: none;
       text-align: center;
+      margin-bottom: 12px;
+    }
+    .auth-container input:focus { border-color: var(--cyan); }
+    .btn-auth {
+      background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
+      color: #070a10;
+      border: none;
+      padding: 10px 20px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
       letter-spacing: 1px;
-      text-transform: uppercase;
     }
-    .config-panel input:focus { border-color: var(--cyan); }
 
-    .controls-row {
+    /* Pantalla de Inicio / Lista de Chats */
+    .home-header {
       display: flex;
-      gap: 6px;
-      margin-bottom: 6px;
+      justify-content: space-between;
       align-items: center;
+      margin-bottom: 8px;
     }
-
-    .select-timer {
+    .home-header span { font-size: 0.75rem; color: var(--cyan); }
+    .btn-new-chat {
       background: var(--bg-panel);
-      border: 1px solid var(--border);
+      border: 1px solid var(--cyan);
       color: var(--cyan);
-      padding: 4px 6px;
+      padding: 4px 8px;
       border-radius: 4px;
       font-size: 0.7rem;
-      outline: none;
-      flex: 1;
+      cursor: pointer;
+      font-weight: bold;
     }
+    .chat-list {
+      flex: 1;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow-y: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .chat-item {
+      background: var(--bg-main);
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .chat-item:active { border-color: var(--cyan); }
+    .chat-item-info h4 { font-size: 0.85rem; color: var(--cyan); }
+    .chat-item-info p { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; }
 
+    /* Pantalla de Conversación Activa */
     .chat-container {
       flex: 1;
       background: var(--bg-panel);
@@ -136,7 +177,25 @@
       position: relative;
     }
 
-    /* Modal de Solicitud de Chat Entrante */
+    .chat-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: var(--bg-main);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+    }
+    .btn-back {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    /* Modal de Solicitud */
     .request-modal {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
@@ -174,138 +233,28 @@
       line-height: 1.3;
       position: relative;
     }
+    .message.sent { background: rgba(0, 243, 255, 0.08); border: 1px solid var(--cyan); color: var(--cyan); align-self: flex-end; }
+    .message.received { background: rgba(16, 185, 129, 0.08); border: 1px solid var(--emerald); color: var(--emerald); align-self: flex-start; }
+    .message.system { background: transparent; color: var(--text-muted); text-align: center; align-self: center; font-size: 0.7rem; border: none; }
 
-    .message.sent {
-      background: rgba(0, 243, 255, 0.08);
-      border: 1px solid var(--cyan);
-      color: var(--cyan);
-      align-self: flex-end;
-    }
+    .msg-meta { font-size: 0.55rem; display: flex; justify-content: space-between; gap: 6px; margin-top: 4px; color: var(--text-muted); }
+    .msg-media img, .msg-media video { max-width: 100%; border-radius: 4px; margin-top: 4px; }
 
-    .message.received {
-      background: rgba(16, 185, 129, 0.08);
-      border: 1px solid var(--emerald);
-      color: var(--emerald);
-      align-self: flex-start;
-    }
-
-    .message.system {
-      background: transparent;
-      color: var(--text-muted);
-      text-align: center;
-      align-self: center;
-      font-size: 0.7rem;
-      border: none;
-    }
-
-    .msg-meta {
-      font-size: 0.55rem;
-      display: flex;
-      justify-content: space-between;
-      gap: 6px;
-      margin-top: 4px;
-      color: var(--text-muted);
-    }
-
-    .msg-media img, .msg-media video {
-      max-width: 100%;
-      border-radius: 4px;
-      margin-top: 4px;
-    }
-
-    .chat-input-area {
-      display: flex;
-      flex-direction: column;
-      padding: 6px;
-      background: var(--bg-main);
-      border-top: 1px solid var(--border);
-      gap: 6px;
-      width: 100%;
-    }
-
-    .chat-input-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      width: 100%;
-    }
-
+    .chat-input-area { display: flex; flex-direction: column; padding: 6px; background: var(--bg-main); border-top: 1px solid var(--border); gap: 6px; width: 100%; }
+    .chat-input-row { display: flex; gap: 6px; align-items: center; width: 100%; }
     .chat-input-area textarea {
-      flex: 1;
-      min-width: 0;
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      color: var(--text-main);
-      padding: 6px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      resize: none;
-      height: 38px;
-      outline: none;
+      flex: 1; min-width: 0; background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-main);
+      padding: 6px; border-radius: 4px; font-size: 0.8rem; resize: none; height: 38px; outline: none;
     }
     .chat-input-area textarea:focus { border-color: var(--cyan); }
 
-    .btn-action {
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      color: var(--cyan);
-      padding: 0 10px;
-      height: 38px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      cursor: pointer;
-      font-weight: bold;
-      flex-shrink: 0;
-    }
-    .btn-action:active { background: var(--border); }
+    .btn-action { background: var(--bg-panel); border: 1px solid var(--border); color: var(--cyan); padding: 0 10px; height: 38px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+    .btn-send { background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%); color: #070a10; border: none; padding: 0 12px; height: 38px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.75rem; letter-spacing: 1px; flex-shrink: 0; }
 
-    .btn-send {
-      background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
-      color: #070a10;
-      border: none;
-      padding: 0 12px;
-      height: 38px;
-      font-weight: bold;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.75rem;
-      letter-spacing: 1px;
-      flex-shrink: 0;
-    }
+    .footer-actions { display: flex; gap: 6px; margin-top: 6px; }
+    .btn-wipe { flex: 1; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 6px; font-weight: bold; border-radius: 4px; font-size: 0.7rem; cursor: pointer; }
 
-    .footer-actions {
-      display: flex;
-      gap: 6px;
-    }
-
-    .btn-wipe {
-      flex: 1;
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid var(--danger);
-      color: var(--danger);
-      padding: 6px;
-      font-weight: bold;
-      border-radius: 4px;
-      font-size: 0.7rem;
-      cursor: pointer;
-    }
-
-    .toast {
-      position: fixed;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--emerald);
-      color: var(--bg-main);
-      padding: 5px 12px;
-      border-radius: 12px;
-      font-weight: bold;
-      font-size: 0.7rem;
-      opacity: 0.9;
-      pointer-events: none;
-      z-index: 1000;
-      display: none;
-    }
+    .toast { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); background: var(--emerald); color: var(--bg-main); padding: 5px 12px; border-radius: 12px; font-weight: bold; font-size: 0.7rem; opacity: 0.9; pointer-events: none; z-index: 1000; display: none; }
   </style>
 </head>
 <body oncontextmenu="return false;">
@@ -322,52 +271,62 @@
     <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
   </header>
 
-  <div class="config-panel">
-    <div>
-      <label for="myCode">MI CÓDIGO FIJO</label>
-      <input type="text" id="myCode" maxlength="6" value="NIIKO">
-    </div>
-    <div>
-      <label for="targetCode">DESTINO (SOCIO)</label>
-      <input type="text" id="targetCode" maxlength="6" placeholder="Ej. SOCIO">
-    </div>
-    <div class="full-w">
-      <label for="secretKey">LLAVE MAESTRA COMPARTIDA (AES-256)</label>
-      <input type="password" id="secretKey" placeholder="Clave secreta..." autocomplete="off">
+  <!-- VISTA 1: AUTENTICACIÓN / CREAR O INGRESAR CLAVE MAESTRA -->
+  <div id="authView" class="view-screen active">
+    <div class="auth-container">
+      <h2>ACCESO BLINDADO</h2>
+      <p>Introduce tu Clave Maestra personal y exclusiva. Sin ella, ningún mensaje puede ser cifrado ni descifrado en este dispositivo.</p>
+      <input type="password" id="masterKeyInput" placeholder="Clave maestra personal..." autocomplete="off">
+      <button class="btn-auth" onclick="unlockApp()">ACCEDER A LA RED</button>
     </div>
   </div>
 
-  <div class="controls-row">
-    <select id="destructTimer" class="select-timer">
-      <option value="0">⏳ Mensaje Fijo</option>
-      <option value="10">🔥 Destruir en 10s</option>
-      <option value="20">🔥 Destruir en 20s</option>
-      <option value="30">🔥 Destruir en 30s</option>
-      <option value="60">🔥 Destruir en 60s</option>
-    </select>
-    <span style="font-size: 0.65rem; color: var(--text-muted);">Blindaje Activo</span>
+  <!-- VISTA 2: PANTALLA DE INICIO (ESTILO WHATSAPP CON LISTA DE CHATS) -->
+  <div id="homeView" class="view-screen">
+    <div class="home-header">
+      <span>MI CÓDIGO: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
+      <button class="btn-new-chat" onclick="openNewChatPrompt()">+ Nuevo Chat</button>
+    </div>
+    <div class="chat-list" id="chatList">
+      <div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos. Pulsa "+ Nuevo Chat" para contactar a alguien.</div>
+    </div>
   </div>
 
-  <div class="chat-container">
-    <!-- Modal de Solicitud de Chat -->
-    <div class="request-modal" id="requestModal">
-      <h3>SOLICITUD DE CHAT ENTRANTE</h3>
-      <p id="requestText">El nodo [????] quiere iniciar comunicación contigo.</p>
-      <div class="modal-actions">
-        <button class="btn-reject" onclick="respondRequest(false)">RECHAZAR</button>
-        <button class="btn-accept" onclick="respondRequest(true)">ACEPTAR</button>
+  <!-- VISTA 3: CONVERSACIÓN ACTIVA -->
+  <div id="chatView" class="view-screen">
+    <div class="chat-container">
+      <!-- Modal de Solicitud de Chat Entrante -->
+      <div class="request-modal" id="requestModal">
+        <h3>SOLICITUD DE CHAT ENTRANTE</h3>
+        <p id="requestText">Un nodo quiere iniciar comunicación contigo.</p>
+        <div class="modal-actions">
+          <button class="btn-reject" onclick="respondRequest(false)">RECHAZAR</button>
+          <button class="btn-accept" onclick="respondRequest(true)">ACEPTAR</button>
+        </div>
       </div>
-    </div>
 
-    <div class="chat-messages" id="chatMessages">
-      <div class="message system">Protocolo de consentimiento activo. Ningún mensaje se confirma sin aprobación.</div>
-    </div>
-    <div class="chat-input-area">
-      <div class="chat-input-row">
-        <input type="file" id="mediaInput" style="display:none" accept="image/*,video/*,audio/*" onchange="handleMedia(this)">
-        <button class="btn-action" onclick="document.getElementById('mediaInput').click()">📁</button>
-        <textarea id="messageInput" placeholder="Mensaje cifrado..." rows="1" onkeydown="handleKey(event)"></textarea>
-        <button class="btn-send" onclick="sendMessage('text')">CIFRAR</button>
+      <div class="chat-top-bar">
+        <button class="btn-back" onclick="goToHome()">❮ Volver</button>
+        <span id="activeChatTitle" style="color:var(--cyan); font-weight:bold;">CHAT</span>
+        <select id="destructTimer" style="background:var(--bg-main); border:1px solid var(--border); color:var(--cyan); font-size:0.65rem; padding:2px; border-radius:3px;">
+          <option value="0">⏳ Fijo</option>
+          <option value="10">🔥 10s</option>
+          <option value="30">🔥 30s</option>
+          <option value="60">🔥 60s</option>
+        </select>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <div class="message system">Canal seguro establecido en RAM.</div>
+      </div>
+
+      <div class="chat-input-area">
+        <div class="chat-input-row">
+          <input type="file" id="mediaInput" style="display:none" accept="image/*,video/*,audio/*" onchange="handleMedia(this)">
+          <button class="btn-action" onclick="document.getElementById('mediaInput').click()">📁</button>
+          <textarea id="messageInput" placeholder="Mensaje cifrado..." rows="1" onkeydown="handleKey(event)"></textarea>
+          <button class="btn-send" onclick="sendMessage('text')">CIFRAR</button>
+        </div>
       </div>
     </div>
   </div>
@@ -381,8 +340,35 @@
   <script>
     const WS_URL = 'wss://app-cipher.onrender.com'; 
     let socket;
-    let approvedChats = new Set(); // Lista de códigos con los que ya se aceptó el chat
+    let masterKey = '';
+    let myCode = '';
+    let currentTarget = '';
+    let chatsData = {}; // Estructura: { TARGET_CODE: { messages: [], approved: false } }
+    let approvedChats = new Set();
     let pendingRequester = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      // Generar código fijo único en el dispositivo si no existe en sessionStorage volátil
+      myCode = 'NIIK_' + Math.random().toString(36).substring(2, 6).toUpperCase();
+      document.getElementById('displayMyCode').textContent = myCode;
+    });
+
+    function unlockApp() {
+      const keyVal = document.getElementById('masterKeyInput').value.trim();
+      if (!keyVal) {
+        showToast('Introduce tu clave maestra');
+        return;
+      }
+      masterKey = keyVal;
+      document.getElementById('masterKeyInput').value = '';
+      
+      // Cambiar a la vista de Inicio
+      document.getElementById('authView').classList.remove('active');
+      document.getElementById('homeView').classList.add('active');
+      
+      initWebSocket();
+      showToast('Sesión descifrada en RAM');
+    }
 
     function initWebSocket() {
       const badge = document.getElementById('netStatus');
@@ -402,9 +388,8 @@
       socket.onmessage = async (event) => {
         try {
           const rawPacket = JSON.parse(event.data);
-          const myCode = document.getElementById('myCode').value.trim().toUpperCase();
 
-          // 1. Manejo de Solicitud de Chat (Handshake)
+          // 1. Solicitud de Chat Entrante
           if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
             pendingRequester = rawPacket.from;
             document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere establecer un canal seguro contigo.`;
@@ -412,70 +397,153 @@
             return;
           }
 
-          // 2. Manejo de Respuesta de Solicitud (Aceptado/Rechazado)
+          // 2. Respuesta de Solicitud
           if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
             if (rawPacket.accepted) {
               approvedChats.add(rawPacket.from);
+              ensureChatExists(rawPacket.from);
+              chatsData[rawPacket.from].approved = true;
+              renderChatList();
               showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
-              updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
+              if (currentTarget === rawPacket.from) {
+                updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
+              }
             } else {
-              showToast(`[${rawPacket.from}] rechazó la solicitud de chat`);
-              updateMessageStatus('pending_req_' + rawPacket.from, '❌ RECHAZADO');
+              showToast(`[${rawPacket.from}] rechazó el chat`);
             }
             return;
           }
 
-          // 3. Manejo de ACKs (Entregado / Leído)
+          // 3. ACKs (Entregado / Leído)
           if (rawPacket.type === 'ack' && rawPacket.target === myCode) {
             updateMessageStatus(rawPacket.msgId, rawPacket.status);
             return;
           }
 
-          // 4. Filtrar mensajes dirigidos a nuestro código
           if (rawPacket.to && rawPacket.to !== myCode) return;
 
-          // Si el chat no ha sido aprobado por nosotros previamente y llega un mensaje normal
+          // 4. Mensaje Entrante
           if (rawPacket.type === 'msg' && !approvedChats.has(rawPacket.from)) {
             pendingRequester = rawPacket.from;
-            document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación de chat.`;
+            document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
             document.getElementById('requestModal').style.display = 'flex';
             return;
           }
 
-          // Descifrar mensaje normal si ya está aprobado
-          const decrypted = await decryptPayload(rawPacket.payload);
+          const decrypted = await decryptPayload(rawPacket.payload, masterKey);
+          ensureChatExists(rawPacket.from);
+          chatsData[rawPacket.from].approved = true;
+
           sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
-          appendMessage(decrypted, 'received', decrypted.timer, decrypted.id, decrypted.from);
 
-          // Marcar como leído
-          setTimeout(() => {
-            sendAck(decrypted.id, '●● LEÍDO', rawPacket.from);
-            updateReceivedStatusToRead(decrypted.id);
-          }, 1000);
+          // Guardar en el historial del chat
+          chatsData[rawPacket.from].messages.push({
+            data: decrypted,
+            type: 'received',
+            timer: decrypted.timer,
+            msgId: decrypted.id,
+            sender: rawPacket.from,
+            status: '●● LEÍDO'
+          });
 
+          // Si estamos dentro de esta conversación, renderizarla de inmediato
+          if (currentTarget === rawPacket.from) {
+            appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from);
+            setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
+          }
+
+          renderChatList();
         } catch (e) {
-          console.error(e);
+          console.error("Error procesando mensaje / Clave errónea");
         }
       };
+    }
+
+    function ensureChatExists(code) {
+      if (!chatsData[code]) {
+        chatsData[code] = { messages: [], approved: approvedChats.has(code) };
+      }
+    }
+
+    function openNewChatPrompt() {
+      const code = prompt("Introduce el Código Fijo del usuario al que deseas contactar:");
+      if (!code) return;
+      const target = code.trim().toUpperCase();
+      if (target === myCode) {
+        showToast("No puedes chatear contigo mismo");
+        return;
+      }
+      openChat(target);
+    }
+
+    function openChat(code) {
+      currentTarget = code;
+      ensureChatExists(code);
+      document.getElementById('activeChatTitle.textContent = `CHAT: ${code}`;
+      document.getElementById('homeView').classList.remove('active');
+      document.getElementById('chatView').classList.add('active');
+
+      // Cargar mensajes previos en pantalla
+      const container = document.getElementById('chatMessages');
+      container.innerHTML = '<div class="message system">Canal seguro cifrado con Clave Maestra.</div>';
+      
+      chatsData[code].messages.forEach(msg => {
+        appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status);
+      });
+    }
+
+    function goToHome() {
+      currentTarget = '';
+      document.getElementById('chatView').classList.remove('active');
+      document.getElementById('homeView').classList.add('active');
+      renderChatList();
+    }
+
+    function renderChatList() {
+      const listEl = document.getElementById('chatList');
+      const codes = Object.keys(chatsData);
+      if (codes.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos.</div>';
+        return;
+      }
+
+      let html = '';
+      codes.forEach(code => {
+        const msgs = chatsData[code].messages;
+        const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].data.content : 'Canal establecido';
+        const preview = typeof lastMsg === 'string' ? (lastMsg.substring(0, 25) + '...') : '[Archivo Multimedia]';
+        
+        html += `
+          <div class="chat-item" onclick="openChat('${code}')">
+            <div class="chat-item-info">
+              <h4>[${code}]</h4>
+              <p>${preview}</p>
+            </div>
+            <span style="font-size:0.6rem; color:var(--emerald);">Activo</span>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
     }
 
     function respondRequest(accepted) {
       document.getElementById('requestModal').style.display = 'none';
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
-      const myCode = document.getElementById('myCode').value.trim().toUpperCase();
       if (accepted) {
         approvedChats.add(pendingRequester);
+        ensureChatExists(pendingRequester);
+        chatsData[pendingRequester].approved = true;
         showToast(`Canal abierto con [${pendingRequester}]`);
+        renderChatList();
       }
 
-      const responsePacket = {
+      socket.send(JSON.stringify({
         type: 'chat_response',
         from: myCode,
         to: pendingRequester,
         accepted: accepted
-      };
-      socket.send(JSON.stringify(responsePacket));
+      }));
       pendingRequester = null;
     }
 
@@ -510,10 +578,7 @@
       return btoa(String.fromCharCode(...combined));
     }
 
-    async function decryptPayload(base64Data) {
-      const password = document.getElementById('secretKey').value;
-      if (!password) throw new Error('Sin llave');
-
+    async function decryptPayload(base64Data, password) {
       const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
       const salt = combined.slice(0, 16);
       const iv = combined.slice(16, 28);
@@ -525,56 +590,47 @@
     }
 
     async function sendMessage(type, contentOverride = null) {
-      const password = document.getElementById('secretKey').value;
-      const myCode = document.getElementById('myCode').value.trim().toUpperCase();
-      const targetCode = document.getElementById('targetCode').value.trim().toUpperCase();
+      if (!masterKey) {
+        showToast('Clave maestra requerida');
+        return;
+      }
       const input = document.getElementById('messageInput');
       const text = contentOverride || input.value.trim();
       const timer = parseInt(document.getElementById('destructTimer').value);
 
-      if (!password) {
-        showToast('Falta la llave maestra');
-        return;
-      }
-      if (!targetCode) {
-        showToast('Indica el código de destino');
-        return;
-      }
       if (!text && type === 'text') return;
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         showToast('Red desconectada');
         return;
       }
 
+      ensureChatExists(currentTarget);
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
       const dataObj = { id: msgId, from: myCode, type: type, content: text, timer: timer };
 
-      // Si aún no hay chat aprobado con este destino, enviar como Solicitud Pendiente ciega
-      if (!approvedChats.has(targetCode)) {
-        const reqId = 'pending_req_' + targetCode;
-        appendMessage(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE');
-        
-        const requestPacket = {
-          type: 'chat_request',
-          from: myCode,
-          to: targetCode
-        };
-        socket.send(JSON.stringify(requestPacket));
-        showToast('Solicitud de chat enviada (Ciega)');
+      // Si no está aprobado, enviar solicitud ciega
+      if (!approvedChats.has(currentTarget)) {
+        const reqId = 'pending_req_' + currentTarget;
+        chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE' });
+        appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE');
+
+        socket.send(JSON.stringify({ type: 'chat_request', from: myCode, to: currentTarget }));
+        showToast('Solicitud de chat enviada');
         if (!contentOverride) input.value = '';
+        renderChatList();
         return;
       }
 
-      // Si ya está aprobado, enviar mensaje cifrado normal
-      appendMessage(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
+      // Mensaje aprobado
+      chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA' });
+      appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
 
       try {
-        const encryptedBase64 = await encryptPayload(dataObj, password);
-        const packet = { type: 'msg', from: myCode, to: targetCode, payload: encryptedBase64 };
-        socket.send(JSON.stringify(packet));
-        
+        const encryptedBase64 = await encryptPayload(dataObj, masterKey);
+        socket.send(JSON.stringify({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64 }));
         updateMessageStatus(msgId, '✓ ENVIADO');
         if (!contentOverride) input.value = '';
+        renderChatList();
       } catch (e) {
         showToast('Error de cifrado');
         updateMessageStatus(msgId, '❌ ERROR');
@@ -591,21 +647,14 @@
           img.src = e.target.result;
           img.onload = function() {
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 500;
-            const MAX_HEIGHT = 500;
-            let width = img.width;
-            let height = img.height;
-            if (width > height) {
-              if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-            } else {
-              if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
-            }
-            canvas.width = width;
-            canvas.height = height;
+            const MAX_WIDTH = 500; const MAX_HEIGHT = 500;
+            let width = img.width; let height = img.height;
+            if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
+            else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+            canvas.width = width; canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
-            sendMessage('image', compressedDataUrl);
+            sendMessage('image', canvas.toDataURL('image/jpeg', 0.5));
           };
         } else {
           sendMessage(file.type.startsWith('video') ? 'video' : 'audio', e.target.result);
@@ -614,7 +663,7 @@
       reader.readAsDataURL(file);
     }
 
-    function appendMessage(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO') {
+    function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO') {
       const container = document.getElementById('chatMessages');
       const div = document.createElement('div');
       div.className = `message ${type}`;
@@ -631,7 +680,7 @@
         innerHTML += `<div class="msg-media"><audio controls src="${data.content}"></audio></div>`;
       }
 
-      const metaLabel = type === 'sent' ? initialStatus : `De: ${senderCode || 'Remitente'}`;
+      const metaLabel = type === 'sent' ? initialStatus : `De: ${senderCode}`;
       innerHTML += `<div class="msg-meta"><span>${metaLabel}</span></div>`;
       div.innerHTML = innerHTML;
       container.appendChild(div);
@@ -659,16 +708,6 @@
       }
     }
 
-    function updateReceivedStatusToRead(msgId) {
-      const el = document.getElementById(msgId);
-      if (el) {
-        const metaSpan = el.querySelector('.msg-meta span');
-        if (metaSpan && !metaSpan.textContent.includes('Destrucción')) {
-          metaSpan.textContent = '●● LEÍDO';
-        }
-      }
-    }
-
     function handleKey(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -677,11 +716,14 @@
     }
 
     function triggerKillSwitch() {
-      document.getElementById('secretKey').value = '';
-      document.getElementById('messageInput').value = '';
+      masterKey = '';
+      chatsData = {};
       approvedChats.clear();
       document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EXECUTADA. RAM LIMPIA.</div>';
       if (socket) socket.close();
+      document.getElementById('chatView').classList.remove('active');
+      document.getElementById('homeView').classList.remove('active');
+      document.getElementById('authView').classList.add('active');
       showToast('Dispositivo esterilizado');
     }
 
@@ -694,14 +736,12 @@
 
     function escapeHTML(str) {
       return str.replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '#' + 39, '"': '&quot;' }[tag] || tag)
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
       );
     }
 
     window.addEventListener('blur', () => { document.body.style.filter = 'blur(8px)'; });
     window.addEventListener('focus', () => { document.body.style.filter = 'none'; });
-
-    initWebSocket();
   </script>
 </body>
 </html>
