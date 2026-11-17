@@ -27,6 +27,7 @@
       font-family: 'Courier New', Courier, monospace;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
+      -webkit-user-select: none;
     }
 
     body {
@@ -37,6 +38,8 @@
       flex-direction: column;
       padding: 10px;
       overflow: hidden;
+      /* Capa de protección visual contra grabación rápida */
+      -webkit-touch-callout: none;
     }
 
     header {
@@ -358,6 +361,7 @@
     let chatsData = {}; 
     let approvedChats = new Set();
     let pendingRequester = null;
+    let audioCtx = null;
 
     window.addEventListener('DOMContentLoaded', () => {
       const saltStored = localStorage.getItem('cipher_auth_salt');
@@ -372,6 +376,16 @@
       if ("Notification" in window && Notification.permission !== "granted") {
         Notification.requestPermission();
       }
+    });
+
+    // Protección anti-captura / grabación (Desenfoque automático y ocultación si cambia la visibilidad)
+    window.addEventListener('blur', () => { 
+      document.body.style.filter = 'blur(15px)';
+      document.body.style.opacity = '0.1';
+    });
+    window.addEventListener('focus', () => { 
+      document.body.style.filter = 'none';
+      document.body.style.opacity = '1';
     });
 
     function triggerAuth() {
@@ -497,8 +511,6 @@
       }
     }
 
-    // Clave de canal universal compartida determinista basada en los códigos del chat (Ordenados alfabéticamente)
-    // Esto garantiza que ambos usuarios usen exactamente la misma contraseña de cifrado para su chat sin importar su Master Key personal.
     async function getUniversalChannelSecret(partnerCode) {
       const sorted = [myCode, partnerCode].sort().join('_');
       return "CIPHER_SECURE_CHANNEL_" + sorted;
@@ -523,7 +535,8 @@
         socket.onclose = () => {
           badge.textContent = 'RECONECTANDO...';
           badge.className = 'status-badge connecting';
-          setTimeout(initWebSocket, 3000);
+          // Reconexión agresiva instantánea para recuperar mensajes en segundo plano
+          setTimeout(initWebSocket, 1500);
         };
 
         socket.onmessage = async (event) => {
@@ -535,6 +548,7 @@
               ensureChatExists(pendingRequester);
               document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro contigo.`;
               document.getElementById('requestModal').style.display = 'flex';
+              playNotificationSound();
               return;
             }
 
@@ -560,12 +574,12 @@
               return;
             }
 
-            // Descifrado bidireccional automático mediante el secreto universal del canal
             if (rawPacket.type === 'msg' && rawPacket.to === myCode) {
               if (!approvedChats.has(rawPacket.from)) {
                 pendingRequester = rawPacket.from;
                 document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
                 document.getElementById('requestModal').style.display = 'flex';
+                playNotificationSound();
                 return;
               }
 
@@ -587,9 +601,12 @@
                 time: decrypted.time
               });
 
+              // Sonido y notificación ciega obligatoria al recibir
+              playNotificationSound();
+              triggerNotification(rawPacket.from);
+
               if (currentTarget !== rawPacket.from) {
                 chatsData[rawPacket.from].unread = (chatsData[rawPacket.from].unread || 0) + 1;
-                triggerNotification(rawPacket.from, decrypted.content);
               }
 
               saveLocalChats();
@@ -602,7 +619,7 @@
               renderChatList();
             }
           } catch (e) {
-            console.error("Error descifrando paquete entrante:", e);
+            console.error("Error procesando paquete entrante:", e);
           }
         };
       } catch (e) {
@@ -610,10 +627,36 @@
       }
     }
 
-    function triggerNotification(senderCode, msgContent) {
+    // Generador sintético de sonido de notificación seguro (Web Audio API)
+    function playNotificationSound() {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Tono A5 agudo seguro
+        osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+      } catch (e) {
+        console.log("Audio omitido por política del navegador");
+      }
+    }
+
+    // Notificación flotante ciega (No muestra contenido por privacidad)
+    function triggerNotification(senderCode) {
       if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(`CIPHER // Mensaje de [${senderCode}]`, {
-          body: typeof msgContent === 'string' ? msgContent : '[Archivo multimedia]',
+        new Notification(`CIPHER // Nuevo Mensaje`, {
+          body: `Mensaje cifrado recibido de [${senderCode}]`,
           icon: './manifest.json'
         });
       }
@@ -809,7 +852,6 @@
       appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA', timeString);
 
       try {
-        // Cifrado simétrico universal del canal para sincronía perfecta bidireccional
         const channelSecret = await getUniversalChannelSecret(currentTarget);
         const encryptedBase64 = await encryptPayload(dataObj, channelSecret);
         
@@ -934,9 +976,6 @@
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
       );
     }
-
-    window.addEventListener('blur', () => { document.body.style.filter = 'blur(8px)'; });
-    window.addEventListener('focus', () => { document.body.style.filter = 'none'; });
   </script>
 </body>
 </html>
