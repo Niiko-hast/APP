@@ -78,7 +78,6 @@
     }
     .view-screen.active { display: flex; }
 
-    /* Pantalla de Autenticación / Registro */
     .auth-container {
       flex: 1;
       display: flex;
@@ -121,7 +120,6 @@
       margin-top: 5px;
     }
 
-    /* Pantalla de Inicio / Lista de Chats */
     .home-header {
       display: flex;
       justify-content: space-between;
@@ -172,7 +170,6 @@
       cursor: pointer;
     }
 
-    /* Conversación Activa */
     .chat-container {
       flex: 1;
       background: var(--bg-panel);
@@ -279,18 +276,16 @@
     <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
   </header>
 
-  <!-- VISTA 1: CONFIGURAR / INGRESAR CLAVE Y CÓDIGO PROPIO -->
   <div id="authView" class="view-screen active">
     <div class="auth-container">
       <h2 id="authTitle">ACCESO BLINDADO</h2>
       <p id="authDesc">Introduce tu Clave Maestra personal y tu Código Único.</p>
       <input type="password" id="masterKeyInput" placeholder="Clave Maestra..." autocomplete="off">
       <input type="text" id="customCodeInput" maxlength="6" placeholder="Tu Código Fijo (Ej. NIIKO)..." autocomplete="off" style="display:none;">
-      <button class="btn-auth" onclick="handleMasterKey()">ACCEDER</button>
+      <button class="btn-auth" onclick="triggerAuth()">ACCEDER</button>
     </div>
   </div>
 
-  <!-- VISTA 2: INICIO (LISTA DE CHATS) -->
   <div id="homeView" class="view-screen">
     <div class="home-header">
       <span>MI CÓDIGO: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
@@ -301,7 +296,6 @@
     </div>
   </div>
 
-  <!-- VISTA 3: CONVERSACIÓN ACTIVA -->
   <div id="chatView" class="view-screen">
     <div class="chat-container">
       <div class="request-modal" id="requestModal">
@@ -366,6 +360,10 @@
       }
     });
 
+    function triggerAuth() {
+      setTimeout(handleMasterKey, 10);
+    }
+
     async function handleMasterKey() {
       const keyVal = document.getElementById('masterKeyInput').value.trim();
       const codeVal = document.getElementById('customCodeInput').value.trim().toUpperCase();
@@ -378,6 +376,507 @@
       const saltStored = localStorage.getItem('cipher_auth_salt');
       const verifStored = localStorage.getItem('cipher_auth_verifier');
 
-      if (!saltStored || !verifStored) {
-        if (!codeVal || codeVal.length < 3) {
-          showToast('Define un Código Fijo válido (mín.
+      try {
+        if (!saltStored || !verifStored) {
+          if (!codeVal || codeVal.length < 3) {
+            showToast('Define un Código Fijo válido (mín. 3 caracteres)');
+            return;
+          }
+
+          myCode = codeVal;
+          localStorage.setItem('cipher_my_code', myCode);
+
+          const salt = crypto.getRandomValues(new Uint8Array(16));
+          const verifIv = crypto.getRandomValues(new Uint8Array(12));
+          const key = await deriveKey(keyVal, salt);
+          
+          const encryptedVerif = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: verifIv }, key, new TextEncoder().encode("CIPHER_VALID"));
+          
+          localStorage.setItem('cipher_auth_salt', btoa(String.fromCharCode(...salt)));
+          localStorage.setItem('cipher_auth_verifier', btoa(String.fromCharCode(...verifIv)) + ":" + btoa(String.fromCharCode(...new Uint8Array(encryptedVerif))));
+          
+          masterKey = keyVal;
+          document.getElementById('masterKeyInput').value = '';
+          document.getElementById('customCodeInput').value = '';
+          await loadLocalChats(keyVal);
+          startAppSession();
+          showToast('¡Perfil y Clave Maestra creados!');
+        } else {
+          const salt = Uint8Array.from(atob(saltStored), c => c.charCodeAt(0));
+          const [ivB64, dataB64] = verifStored.split(":");
+          const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
+          const data = Uint8Array.from(atob(dataB64), c => c.charCodeAt(0));
+
+          const key = await deriveKey(keyVal, salt);
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+          const decryptedStr = new TextDecoder().decode(decrypted);
+
+          if (decryptedStr === "CIPHER_VALID") {
+            masterKey = keyVal;
+            document.getElementById('masterKeyInput').value = '';
+            myCode = localStorage.getItem('cipher_my_code');
+            await loadLocalChats(keyVal);
+            startAppSession();
+            showToast('Sesión desbloqueada');
+          } else {
+            throw new Error("Clave incorrecta");
+          }
+        }
+      } catch (e) {
+        showToast('❌ Clave Maestra Incorrecta o Error Crypto');
+        document.getElementById('masterKeyInput').value = '';
+      }
+    }
+
+    function startAppSession() {
+      document.getElementById('displayMyCode').textContent = myCode;
+      document.getElementById('authView').classList.remove('active');
+      document.getElementById('homeView').classList.add('active');
+      initWebSocket();
+    }
+
+    async function loadLocalChats(password) {
+      try {
+        const encryptedBlob = localStorage.getItem('cipher_secure_vault_' + myCode);
+        if (!encryptedBlob) {
+          chatsData = {};
+          approvedChats = new Set();
+          return;
+        }
+
+        const combined = Uint8Array.from(atob(encryptedBlob), c => c.charCodeAt(0));
+        const salt = combined.slice(0, 16);
+        const iv = combined.slice(16, 28);
+        const data = combined.slice(28);
+
+        const key = await deriveKey(password, salt);
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+        const parsed = JSON.parse(new TextDecoder().decode(decrypted));
+
+        chatsData = parsed.chats || {};
+        approvedChats = new Set(parsed.approved || []);
+      } catch (e) {
+        chatsData = {};
+        approvedChats = new Set();
+      }
+      renderChatList();
+    }
+
+    async function saveLocalChats() {
+      if (!masterKey) return;
+      try {
+        const payload = JSON.stringify({ chats: chatsData, approved: [...approvedChats] });
+        const enc = new TextEncoder();
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await deriveKey(masterKey, salt);
+        const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(payload));
+
+        const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+        combined.set(salt, 0);
+        combined.set(iv, salt.length);
+        combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+
+        localStorage.setItem('cipher_secure_vault_' + myCode, btoa(String.fromCharCode(...combined)));
+      } catch (e) {
+        console.error("Error guardando bóveda");
+      }
+    }
+
+    function initWebSocket() {
+      const badge = document.getElementById('netStatus');
+      badge.textContent = 'CONECTANDO...';
+      badge.className = 'status-badge connecting';
+
+      try {
+        socket = new WebSocket(WS_URL);
+
+        socket.onopen = () => {
+          badge.textContent = 'EN LÍNEA (AES)';
+          badge.className = 'status-badge connected';
+          if (myCode) {
+            socket.send(JSON.stringify({ type: 'register', code: myCode }));
+          }
+        };
+
+        socket.onclose = () => {
+          badge.textContent = 'RECONECTANDO...';
+          badge.className = 'status-badge connecting';
+          setTimeout(initWebSocket, 3000);
+        };
+
+        socket.onmessage = async (event) => {
+          try {
+            const rawPacket = JSON.parse(event.data);
+
+            if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
+              pendingRequester = rawPacket.from;
+              ensureChatExists(pendingRequester);
+              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro contigo.`;
+              document.getElementById('requestModal').style.display = 'flex';
+              return;
+            }
+
+            if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
+              if (rawPacket.accepted) {
+                approvedChats.add(rawPacket.from);
+                ensureChatExists(rawPacket.from);
+                chatsData[rawPacket.from].approved = true;
+                saveLocalChats();
+                renderChatList();
+                showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
+                if (currentTarget === rawPacket.from) {
+                  updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
+                }
+              } else {
+                showToast(`[${rawPacket.from}] rechazó el chat`);
+              }
+              return;
+            }
+
+            if (rawPacket.type === 'ack' && rawPacket.target === myCode) {
+              updateMessageStatus(rawPacket.msgId, rawPacket.status);
+              return;
+            }
+
+            if (rawPacket.type === 'msg' && rawPacket.to === myCode) {
+              if (!approvedChats.has(rawPacket.from)) {
+                pendingRequester = rawPacket.from;
+                document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
+                document.getElementById('requestModal').style.display = 'flex';
+                return;
+              }
+
+              const decrypted = await decryptPayload(rawPacket.payload, masterKey);
+              ensureChatExists(rawPacket.from);
+              chatsData[rawPacket.from].approved = true;
+
+              sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
+
+              chatsData[rawPacket.from].messages.push({
+                data: decrypted,
+                type: 'received',
+                timer: decrypted.timer,
+                msgId: decrypted.id,
+                sender: rawPacket.from,
+                status: '●● LEÍDO'
+              });
+              saveLocalChats();
+
+              if (currentTarget === rawPacket.from) {
+                appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from);
+                setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
+              }
+
+              renderChatList();
+            }
+          } catch (e) {
+            console.error("Error procesando paquete entrante", e);
+          }
+        };
+      } catch (e) {
+        console.error("Excepción socket:", e);
+      }
+    }
+
+    function ensureChatExists(code) {
+      if (!chatsData[code]) {
+        chatsData[code] = { messages: [], approved: approvedChats.has(code) };
+      }
+    }
+
+    function openNewChatPrompt() {
+      const code = prompt("Introduce el Código Fijo del usuario al que deseas contactar:");
+      if (!code) return;
+      const target = code.trim().toUpperCase();
+      if (target === myCode) {
+        showToast("No puedes chatear contigo mismo");
+        return;
+      }
+      openChat(target);
+    }
+
+    function openChat(code) {
+      currentTarget = code;
+      ensureChatExists(code);
+      document.getElementById('activeChatTitle').textContent = `CHAT: ${code}`;
+      document.getElementById('homeView').classList.remove('active');
+      document.getElementById('chatView').classList.add('active');
+
+      const container = document.getElementById('chatMessages');
+      container.innerHTML = '<div class="message system">Historial seguro cargado.</div>';
+      
+      chatsData[code].messages.forEach(msg => {
+        appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status);
+      });
+    }
+
+    function goToHome() {
+      currentTarget = '';
+      document.getElementById('chatView').classList.remove('active');
+      document.getElementById('homeView').classList.add('active');
+      renderChatList();
+    }
+
+    function renderChatList() {
+      const listEl = document.getElementById('chatList');
+      const codes = Object.keys(chatsData);
+      if (codes.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos.</div>';
+        return;
+      }
+
+      let html = '';
+      codes.forEach(code => {
+        const msgs = chatsData[code].messages;
+        const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].data.content : 'Canal establecido';
+        const preview = typeof lastMsg === 'string' ? (lastMsg.substring(0, 25) + '...') : '[Archivo Multimedia]';
+        
+        html += `
+          <div class="chat-item">
+            <div class="chat-item-info" onclick="openChat('${code}')">
+              <h4>[${code}]</h4>
+              <p>${preview}</p>
+            </div>
+            <button class="btn-delete-chat" onclick="deleteChat('${code}')">Borrar</button>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
+    }
+
+    function deleteChat(code) {
+      if (confirm(`¿Estás seguro de borrar el chat con [${code}]?`)) {
+        delete chatsData[code];
+        approvedChats.delete(code);
+        saveLocalChats();
+        renderChatList();
+        showToast('Chat eliminado');
+      }
+    }
+
+    function respondRequest(accepted) {
+      document.getElementById('requestModal').style.display = 'none';
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+      if (accepted) {
+        approvedChats.add(pendingRequester);
+        ensureChatExists(pendingRequester);
+        chatsData[pendingRequester].approved = true;
+        saveLocalChats();
+        showToast(`Canal abierto con [${pendingRequester}]`);
+        renderChatList();
+      }
+
+      socket.send(JSON.stringify({
+        type: 'chat_response',
+        from: myCode,
+        to: pendingRequester,
+        accepted: accepted
+      }));
+      pendingRequester = null;
+    }
+
+    function sendAck(msgId, statusText, targetCode) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ type: 'ack', msgId: msgId, status: statusText, target: targetCode }));
+    }
+
+    async function deriveKey(password, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function encryptPayload(dataObj, password) {
+      const enc = new TextEncoder();
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKey(password, salt);
+      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(dataObj)));
+
+      const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+      combined.set(salt, 0);
+      combined.set(iv, salt.length);
+      combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+      return btoa(String.fromCharCode(...combined));
+    }
+
+    async function decryptPayload(base64Data, password) {
+      const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+      const salt = combined.slice(0, 16);
+      const iv = combined.slice(16, 28);
+      const data = combined.slice(28);
+
+      const key = await deriveKey(password, salt);
+      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+      return JSON.parse(new TextDecoder().decode(decrypted));
+    }
+
+    async function sendMessage(type, contentOverride = null) {
+      if (!masterKey) {
+        showToast('Clave maestra requerida');
+        return;
+      }
+      const input = document.getElementById('messageInput');
+      const text = contentOverride || input.value.trim();
+      const timer = parseInt(document.getElementById('destructTimer').value);
+
+      if (!text && type === 'text') return;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        showToast('Red desconectada');
+        return;
+      }
+
+      ensureChatExists(currentTarget);
+      const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
+      const dataObj = { id: msgId, from: myCode, type: type, content: text, timer: timer };
+
+      if (!approvedChats.has(currentTarget)) {
+        const reqId = 'pending_req_' + currentTarget;
+        chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE' });
+        saveLocalChats();
+        appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE');
+
+        socket.send(JSON.stringify({ type: 'chat_request', from: myCode, to: currentTarget }));
+        showToast('Solicitud de chat enviada');
+        if (!contentOverride) input.value = '';
+        renderChatList();
+        return;
+      }
+
+      chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA' });
+      saveLocalChats();
+      appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA');
+
+      try {
+        const encryptedBase64 = await encryptPayload(dataObj, masterKey);
+        socket.send(JSON.stringify({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64 }));
+        updateMessageStatus(msgId, '✓ ENVIADO');
+        if (!contentOverride) input.value = '';
+        saveLocalChats();
+        renderChatList();
+      } catch (e) {
+        showToast('Error de cifrado');
+        updateMessageStatus(msgId, '❌ ERROR');
+      }
+    }
+
+    function handleMedia(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        if (file.type.startsWith('image')) {
+          const img = new Image();
+          img.src = e.target.result;
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 500; const MAX_HEIGHT = 500;
+            let width = img.width; let height = img.height;
+            if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
+            else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            sendMessage('image', canvas.toDataURL('image/jpeg', 0.5));
+          };
+        } else {
+          sendMessage(file.type.startsWith('video') ? 'video' : 'audio', e.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO') {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = `message ${type}`;
+      if (msgId) div.id = msgId;
+
+      let innerHTML = '';
+      if (data.type === 'text') {
+        innerHTML += `<span>${escapeHTML(data.content)}</span>`;
+      } else if (data.type === 'image') {
+        innerHTML += `<div class="msg-media"><img src="${data.content}"/></div>`;
+      } else if (data.type === 'video') {
+        innerHTML += `<div class="msg-media"><video controls src="${data.content}"></video></div>`;
+      } else if (data.type === 'audio') {
+        innerHTML += `<div class="msg-media"><audio controls src="${data.content}"></audio></div>`;
+      }
+
+      const metaLabel = type === 'sent' ? initialStatus : `De: ${senderCode}`;
+      innerHTML += `<div class="msg-meta"><span>${metaLabel}</span></div>`;
+      div.innerHTML = innerHTML;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+
+      if (timer > 0 && type === 'received') {
+        let countdown = timer;
+        const metaDiv = div.querySelector('.msg-meta span');
+        const interval = setInterval(() => {
+          countdown--;
+          metaDiv.innerHTML = `<span style="color:var(--danger)">🔥 Destrucción en ${countdown}s</span>`;
+          if (countdown <= 0) {
+            clearInterval(interval);
+            div.remove();
+          }
+        }, 1000);
+      }
+    }
+
+    function updateMessageStatus(msgId, statusText) {
+      const el = document.getElementById(msgId);
+      if (el) {
+        const metaSpan = el.querySelector('.msg-meta span');
+        if (metaSpan) metaSpan.textContent = statusText;
+      }
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage('text');
+      }
+    }
+
+    function triggerKillSwitch() {
+      masterKey = '';
+      chatsData = {};
+      approvedChats.clear();
+      localStorage.removeItem('cipher_secure_vault_' + myCode);
+      localStorage.removeItem('cipher_auth_salt');
+      localStorage.removeItem('cipher_auth_verifier');
+      localStorage.removeItem('cipher_my_code');
+      document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EJECUTADA. BOVEDA DESTRUIDA.</div>';
+      if (socket) socket.close();
+      document.getElementById('chatView').classList.remove('active');
+      document.getElementById('homeView').classList.remove('active');
+      document.getElementById('authView').classList.add('active');
+      showToast('Dispositivo esterilizado');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 2000);
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    window.addEventListener('blur', () => { document.body.style.filter = 'blur(8px)'; });
+    window.addEventListener('focus', () => { document.body.style.filter = 'none'; });
+  </script>
+</body>
+</html>
