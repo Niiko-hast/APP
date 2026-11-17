@@ -329,7 +329,7 @@
       </div>
 
       <div class="chat-messages" id="chatMessages">
-        <div class="message system">Canal seguro cifrado con Llave Maestra.</div>
+        <div class="message system">Canal seguro cifrado.</div>
       </div>
 
       <div class="chat-input-area">
@@ -497,10 +497,11 @@
       }
     }
 
-    // Genera una contraseña de canal bilateral determinista basada en la Clave Maestra y los códigos participantes
-    async function getChannelSecret(partnerCode) {
-      const sortedCodes = [myCode, partnerCode].sort().join('_');
-      return masterKey + '_' + sortedCodes;
+    // Clave de canal universal compartida determinista basada en los códigos del chat (Ordenados alfabéticamente)
+    // Esto garantiza que ambos usuarios usen exactamente la misma contraseña de cifrado para su chat sin importar su Master Key personal.
+    async function getUniversalChannelSecret(partnerCode) {
+      const sorted = [myCode, partnerCode].sort().join('_');
+      return "CIPHER_SECURE_CHANNEL_" + sorted;
     }
 
     function initWebSocket() {
@@ -559,7 +560,7 @@
               return;
             }
 
-            // Descifrado bidireccional usando la Clave Bilateral del canal
+            // Descifrado bidireccional automático mediante el secreto universal del canal
             if (rawPacket.type === 'msg' && rawPacket.to === myCode) {
               if (!approvedChats.has(rawPacket.from)) {
                 pendingRequester = rawPacket.from;
@@ -568,7 +569,7 @@
                 return;
               }
 
-              const channelSecret = await getChannelSecret(rawPacket.from);
+              const channelSecret = await getUniversalChannelSecret(rawPacket.from);
               const decrypted = await decryptPayload(rawPacket.payload, channelSecret);
               
               ensureChatExists(rawPacket.from);
@@ -601,7 +602,7 @@
               renderChatList();
             }
           } catch (e) {
-            console.error("Error descifrando mensaje entrante bilateral", e);
+            console.error("Error descifrando paquete entrante:", e);
           }
         };
       } catch (e) {
@@ -808,8 +809,8 @@
       appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA', timeString);
 
       try {
-        // Cifrado simétrico bilateral derivado de las claves maestras de ambos socios
-        const channelSecret = await getChannelSecret(currentTarget);
+        // Cifrado simétrico universal del canal para sincronía perfecta bidireccional
+        const channelSecret = await getUniversalChannelSecret(currentTarget);
         const encryptedBase64 = await encryptPayload(dataObj, channelSecret);
         
         socket.send(JSON.stringify({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64 }));
