@@ -78,7 +78,7 @@
     }
     .view-screen.active { display: flex; }
 
-    /* Pantalla de Autenticación / Registro de Credenciales */
+    /* Pantalla de Autenticación / Registro */
     .auth-container {
       flex: 1;
       display: flex;
@@ -367,7 +367,7 @@
     });
 
     async function handleMasterKey() {
-      const keyVal = document.getElementById('masterKeyInput'].value.trim();
+      const keyVal = document.getElementById('masterKeyInput').value.trim();
       const codeVal = document.getElementById('customCodeInput').value.trim().toUpperCase();
 
       if (!keyVal) {
@@ -508,8 +508,9 @@
           try {
             const rawPacket = JSON.parse(event.data);
 
-            // Filtrar estrictamente para que solo procese paquetes dirigidos a nuestro código
-            if (rawPacket.to && rawPacket.to !== myCode) return;
+            // CORRECCIÓN CRÍTICA DE ENRUTAMIENTO:
+            // Verificamos que el paquete esté dirigido explícitamente a nuestro código
+            if (!rawPacket.to || rawPacket.to !== myCode) return;
 
             // 1. Solicitud de Chat Entrante (Handshake)
             if (rawPacket.type === 'chat_request') {
@@ -577,7 +578,7 @@
               renderChatList();
             }
           } catch (e) {
-            console.error("Error procesando paquete entrante");
+            console.error("Error procesando paquete entrante", e);
           }
         };
       } catch (e) {
