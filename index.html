@@ -27,8 +27,6 @@
       padding: 0;
       font-family: 'Courier New', Courier, monospace;
       -webkit-tap-highlight-color: transparent;
-      user-select: none;
-      -webkit-user-select: none;
     }
 
     body {
@@ -39,7 +37,6 @@
       flex-direction: column;
       padding: 10px;
       overflow: hidden;
-      -webkit-touch-callout: none;
     }
 
     header {
@@ -94,10 +91,9 @@
 
     .view-screen {
       flex: 1;
-      display: flex;
+      display: none;
       flex-direction: column;
       overflow: hidden;
-      display: none;
     }
     .view-screen.active { display: flex; }
 
@@ -200,7 +196,7 @@
     .chat-item-info { flex: 1; cursor: pointer; min-width: 0; }
     .chat-item-info h4 { font-size: 0.82rem; color: var(--cyan); display: flex; justify-content: space-between; align-items: center; }
     .chat-item-info p { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    
+
     .unread-badge {
       background: var(--cyan);
       color: var(--bg-main);
@@ -269,13 +265,12 @@
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(7, 10, 16, 0.96);
-      display: flex;
+      display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       padding: 20px;
       z-index: 500;
-      display: none;
       text-align: center;
     }
     .request-modal h3 { color: var(--cyan); font-size: 1rem; margin-bottom: 10px; }
@@ -501,7 +496,7 @@
     .suggest-textarea:focus { border-color: var(--cyan); }
   </style>
 </head>
-<body oncontextmenu="return false;">
+<body>
 
   <header>
     <div class="brand">
@@ -566,7 +561,7 @@
       </div>
 
       <div class="chat-messages" id="chatMessages">
-        <div class="message system">Canal seguro cifrado (Malla + Relé).</div>
+        <div class="message system">Canal seguro cifrado (ECDH + AES-GCM + Firma ECDSA).</div>
       </div>
 
       <div class="reply-banner" id="replyBanner">
@@ -586,7 +581,7 @@
     </div>
   </div>
 
-  <!-- Modal Configuración Personalizada (Idioma y Opciones) -->
+  <!-- Modal Configuración Personalizada -->
   <div class="overlay-modal" id="settingsModal">
     <div class="modal-header">
       <span id="settingsTitle">⚙️ CONFIGURACIÓN</span>
@@ -630,7 +625,7 @@
     </div>
   </div>
 
-  <!-- Modal Editor Antes de Enviar (Imagen o Vídeo) -->
+  <!-- Modal Editor Antes de Enviar -->
   <div class="overlay-modal" id="mediaEditorModal">
     <div class="modal-header">
       <span id="editorTitle">EDITAR ANTES DE ENVIAR</span>
@@ -689,6 +684,10 @@
       <button class="btn-back" onclick="closeSuggestionsModal()">✕ Cerrar</button>
     </div>
     <textarea class="suggest-textarea" id="suggestionInput" placeholder="Escribe aquí tu sugerencia de mejora, función o reporte para CIPHER SHIELD..."></textarea>
+    <div class="setting-row">
+      <span>Ocultar mi código al enviar:</span>
+      <input type="checkbox" id="cfgAnonSuggest">
+    </div>
     <div class="editor-actions">
       <button class="btn-sec" id="btnSaveSuggest" onclick="saveSuggestionLocal()">Guardar en Bóveda</button>
       <button class="btn-pri" id="btnSendSuggestToCode" onclick="sendSuggestionToMyCode()">Enviar a mi Código</button>
@@ -702,10 +701,15 @@
   <div class="toast" id="toast">Acción completada</div>
 
   <script>
-    const WS_URL = 'wss://app-cipher.onrender.com'; 
-    const DEFAULT_SUGGESTIONS_CODE = 'CIPHER-ADMIN'; // Reemplaza por tu código CIPHER-XXXXXX o configúralo en Ajustes
+    const WS_URL = 'wss://app-cipher.onrender.com';
+    const DEFAULT_SUGGESTIONS_CODE = 'CIPHER-ADMIN';
     const MESH_CHANNEL_NAME = 'CIPHER_MESH_V1';
     const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    const MAX_PACKET_BYTES = 1_500_000;
+    const MAX_MSGS_PER_WINDOW = 15;
+    const RATE_WINDOW_MS = 3000;
+    const DB_NAME = 'CIPHER_VAULT_DB';
+    const DB_STORE = 'vault_store';
 
     const I18N = {
       es: {
@@ -823,12 +827,12 @@
       defaultTimer: 0
     };
 
-    let socket;
+    let socket = null;
     let meshChannel = null;
     let masterKey = '';
     let myCode = '';
     let currentTarget = '';
-    let chatsData = {}; 
+    let chatsData = {};
     let approvedChats = new Set();
     let blockedChats = new Set();
     let pendingRequester = null;
@@ -841,9 +845,66 @@
     let typingTimeout = null;
     let seenPackets = new Set();
     let rtcPeers = new Map();
+    let senderRateMap = new Map();
+
+    // Claves criptográficas en memoria
+    let signKeyPair = null;     // ECDSA P-256 para firmar paquetes
+    let ecdhKeyPair = null;     // ECDH P-256 para intercambio de secretos de sesión
+    let mySignPubJwk = null;
+    let myEcdhPubJwk = null;
+    let peerPubRegistry = {};    // { [code]: { signPub, ecdhPub } }
+    let sessionAesKeys = new Map(); // partnerCode -> CryptoKey (AES-GCM 256)
 
     let draftMedia = { kind: null, rawDataUrl: null, rotation: 0 };
     let currentViewerZoom = 1;
+
+    function openVaultDB() {
+      return new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) {
+          reject(new Error('IndexedDB no disponible'));
+          return;
+        }
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(DB_STORE)) {
+            db.createObjectStore(DB_STORE);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbSet(key, val) {
+      const db = await openVaultDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).put(val, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function idbGet(key) {
+      const db = await openVaultDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readonly');
+        const req = tx.objectStore(DB_STORE).get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbClear() {
+      const db = await openVaultDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
 
     function applyLanguage(langCode) {
       const dict = I18N[langCode] || I18N.es;
@@ -899,15 +960,10 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       applyLanguage('es');
-      const saltStored = localStorage.getItem('cipher_auth_salt');
-      if (saltStored) {
-        myCode = localStorage.getItem('cipher_my_code') || '';
-      }
-
+      myCode = localStorage.getItem('cipher_my_code') || '';
       initLocalMeshChannel();
-
-      if ("Notification" in window && Notification.permission !== "granted") {
-        Notification.requestPermission();
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
       }
     });
 
@@ -920,23 +976,124 @@
       }
     }
 
-    async function generateCryptoFingerprintCode() {
-      const keyPair = await crypto.subtle.generateKey(
-        { name: 'ECDSA', namedCurve: 'P-256' },
-        true,
-        ['sign', 'verify']
-      );
-      const rawPub = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+    async function initIdentityCrypto(existingVault) {
+      if (existingVault && existingVault.signKeys && existingVault.ecdhKeys) {
+        signKeyPair = {
+          publicKey: await crypto.subtle.importKey('jwk', existingVault.signKeys.pub, { name: 'ECDSA', namedCurve: 'P-256' }, true, ['verify']),
+          privateKey: await crypto.subtle.importKey('jwk', existingVault.signKeys.priv, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign'])
+        };
+        ecdhKeyPair = {
+          publicKey: await crypto.subtle.importKey('jwk', existingVault.ecdhKeys.pub, { name: 'ECDH', namedCurve: 'P-256' }, true, []),
+          privateKey: await crypto.subtle.importKey('jwk', existingVault.ecdhKeys.priv, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits'])
+        };
+        mySignPubJwk = existingVault.signKeys.pub;
+        myEcdhPubJwk = existingVault.ecdhKeys.pub;
+        peerPubRegistry = existingVault.peerPubs || {};
+        return;
+      }
+
+      signKeyPair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+      ecdhKeyPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits']);
+
+      const rawPub = await crypto.subtle.exportKey('raw', signKeyPair.publicKey);
       const hashBuffer = await crypto.subtle.digest('SHA-256', rawPub);
       const hex = Array.from(new Uint8Array(hashBuffer))
         .map(b => b.toString(16).padStart(2, '0'))
         .join('')
         .toUpperCase();
-      return 'CIPHER-' + hex.substring(0, 6);
+      myCode = 'CIPHER-' + hex.substring(0, 6);
+      localStorage.setItem('cipher_my_code', myCode);
+
+      mySignPubJwk = await crypto.subtle.exportKey('jwk', signKeyPair.publicKey);
+      myEcdhPubJwk = await crypto.subtle.exportKey('jwk', ecdhKeyPair.publicKey);
+      peerPubRegistry = {};
     }
 
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
+    function canonicalPacketString(pkt) {
+      return JSON.stringify({
+        type: pkt.type || '',
+        from: pkt.from || '',
+        to: pkt.to || '',
+        pktId: pkt.pktId || '',
+        payload: pkt.payload || '',
+        pubBundle: pkt.pubBundle || null,
+        msgId: pkt.msgId || '',
+        status: pkt.status || '',
+        target: pkt.target || '',
+        accepted: typeof pkt.accepted === 'boolean' ? pkt.accepted : null
+      });
+    }
+
+    async function signPacketObj(pkt) {
+      if (!signKeyPair || !signKeyPair.privateKey) return pkt;
+      const enc = new TextEncoder().encode(canonicalPacketString(pkt));
+      const sigBuf = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, signKeyPair.privateKey, enc);
+      const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sigBuf)));
+      return { ...pkt, sig: sigB64 };
+    }
+
+    async function verifyPacketSig(pkt, senderSignJwk) {
+      if (!pkt || !pkt.sig || !senderSignJwk) return false;
+      try {
+        const pubKey = await crypto.subtle.importKey('jwk', senderSignJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+        const sigBytes = Uint8Array.from(atob(pkt.sig), c => c.charCodeAt(0));
+        const enc = new TextEncoder().encode(canonicalPacketString(pkt));
+        return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pubKey, sigBytes, enc);
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function getSessionAesKey(partnerCode) {
+      if (sessionAesKeys.has(partnerCode)) {
+        return sessionAesKeys.get(partnerCode);
+      }
+      const peerInfo = peerPubRegistry[partnerCode];
+      if (!peerInfo || !peerInfo.ecdhPub || !ecdhKeyPair) return null;
+
+      const peerEcdhKey = await crypto.subtle.importKey('jwk', peerInfo.ecdhPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+      const sharedBits = await crypto.subtle.deriveBits({ name: 'ECDH', public: peerEcdhKey }, ecdhKeyPair.privateKey, 256);
+
+      const hkdfBase = await crypto.subtle.importKey('raw', sharedBits, { name: 'HKDF' }, false, ['deriveKey']);
+      const sortedPair = [myCode, partnerCode].sort().join(':');
+      const salt = new TextEncoder().encode('CIPHER_HKDF_SALT_V2');
+      const info = new TextEncoder().encode('CIPHER_SESSION_' + sortedPair);
+
+      const aesKey = await crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt, info },
+        hkdfBase,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+      sessionAesKeys.set(partnerCode, aesKey);
+      return aesKey;
+    }
+
+    async function encryptWithSessionKey(dataObj, partnerCode) {
+      const aesKey = await getSessionAesKey(partnerCode);
+      if (!aesKey) throw new Error('Sin clave de sesión ECDH con ' + partnerCode);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encoded = new TextEncoder().encode(JSON.stringify(dataObj));
+      const cipherBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, encoded);
+      const combined = new Uint8Array(iv.length + cipherBuf.byteLength);
+      combined.set(iv, 0);
+      combined.set(new Uint8Array(cipherBuf), iv.length);
+      return btoa(String.fromCharCode(...combined));
+    }
+
+    async function decryptWithSessionKey(base64Payload, partnerCode) {
+      const aesKey = await getSessionAesKey(partnerCode);
+      if (!aesKey) throw new Error('Sin clave de sesión ECDH para descifrar de ' + partnerCode);
+      const combined = Uint8Array.from(atob(base64Payload), c => c.charCodeAt(0));
+      const iv = combined.slice(0, 12);
+      const data = combined.slice(12);
+      const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, data);
+      return JSON.parse(new TextDecoder().decode(plainBuf));
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
         document.body.style.filter = 'none';
         document.body.style.opacity = '1';
         if (myCode && (!socket || socket.readyState !== WebSocket.OPEN)) {
@@ -956,7 +1113,6 @@
 
     async function handleMasterKey() {
       const keyVal = document.getElementById('masterKeyInput').value.trim();
-
       if (!keyVal) {
         showToast('Introduce tu Clave Maestra');
         return;
@@ -967,45 +1123,41 @@
 
       try {
         if (!saltStored || !verifStored) {
-          myCode = await generateCryptoFingerprintCode();
-          localStorage.setItem('cipher_my_code', myCode);
-
           const salt = crypto.getRandomValues(new Uint8Array(16));
           const verifIv = crypto.getRandomValues(new Uint8Array(12));
           const key = await deriveKey(keyVal, salt);
-          
-          const encryptedVerif = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: verifIv }, key, new TextEncoder().encode("CIPHER_VALID"));
-          
+          const encryptedVerif = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: verifIv }, key, new TextEncoder().encode('CIPHER_VALID'));
+
           localStorage.setItem('cipher_auth_salt', btoa(String.fromCharCode(...salt)));
-          localStorage.setItem('cipher_auth_verifier', btoa(String.fromCharCode(...verifIv)) + ":" + btoa(String.fromCharCode(...new Uint8Array(encryptedVerif))));
-          
+          localStorage.setItem('cipher_auth_verifier', btoa(String.fromCharCode(...verifIv)) + ':' + btoa(String.fromCharCode(...new Uint8Array(encryptedVerif))));
+
           masterKey = keyVal;
           document.getElementById('masterKeyInput').value = '';
-          await loadLocalChats(keyVal);
+          await initIdentityCrypto(null);
+          await saveLocalChats();
           startAppSession();
           showToast(`Identidad generada: ${myCode}`);
         } else {
           const salt = Uint8Array.from(atob(saltStored), c => c.charCodeAt(0));
-          const [ivB64, dataB64] = verifStored.split(":");
+          const [ivB64, dataB64] = verifStored.split(':');
           const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
           const data = Uint8Array.from(atob(dataB64), c => c.charCodeAt(0));
 
           const key = await deriveKey(keyVal, salt);
-          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
-          const decryptedStr = new TextDecoder().decode(decrypted);
-
-          if (decryptedStr === "CIPHER_VALID") {
-            masterKey = keyVal;
-            document.getElementById('masterKeyInput').value = '';
-            myCode = localStorage.getItem('cipher_my_code');
-            await loadLocalChats(keyVal);
-            startAppSession();
-            showToast('Sesión desbloqueada');
-          } else {
-            throw new Error("Clave incorrecta");
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+          if (new TextDecoder().decode(decrypted) !== 'CIPHER_VALID') {
+            throw new Error('Clave incorrecta');
           }
+
+          masterKey = keyVal;
+          document.getElementById('masterKeyInput').value = '';
+          myCode = localStorage.getItem('cipher_my_code') || '';
+          const parsedVault = await loadLocalChats(keyVal);
+          await initIdentityCrypto(parsedVault);
+          startAppSession();
+          showToast('Sesión desbloqueada');
         }
-      } catch (e) {
+      } catch (_) {
         showToast('❌ Clave Maestra Incorrecta o Error Crypto');
         document.getElementById('masterKeyInput').value = '';
       }
@@ -1022,12 +1174,12 @@
 
     async function loadLocalChats(password) {
       try {
-        const encryptedBlob = localStorage.getItem('cipher_secure_vault_' + myCode);
+        const encryptedBlob = await idbGet('vault_' + myCode);
         if (!encryptedBlob) {
           chatsData = {};
           approvedChats = new Set();
           blockedChats = new Set();
-          return;
+          return null;
         }
 
         const combined = Uint8Array.from(atob(encryptedBlob), c => c.charCodeAt(0));
@@ -1036,7 +1188,7 @@
         const data = combined.slice(28);
 
         const key = await deriveKey(password, salt);
-        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
         const parsed = JSON.parse(new TextDecoder().decode(decrypted));
 
         chatsData = parsed.chats || {};
@@ -1045,66 +1197,88 @@
         if (parsed.settings) {
           userSettings = { ...userSettings, ...parsed.settings };
         }
-      } catch (e) {
+        renderChatList();
+        return parsed;
+      } catch (_) {
         chatsData = {};
         approvedChats = new Set();
         blockedChats = new Set();
+        return null;
       }
-      renderChatList();
     }
 
     async function saveLocalChats() {
-      if (!masterKey) return;
+      if (!masterKey || !myCode) return;
       try {
+        const signPrivJwk = signKeyPair && signKeyPair.privateKey ? await crypto.subtle.exportKey('jwk', signKeyPair.privateKey) : null;
+        const ecdhPrivJwk = ecdhKeyPair && ecdhKeyPair.privateKey ? await crypto.subtle.exportKey('jwk', ecdhKeyPair.privateKey) : null;
+
         const payload = JSON.stringify({
           chats: chatsData,
           approved: [...approvedChats],
           blocked: [...blockedChats],
-          settings: userSettings
+          settings: userSettings,
+          peerPubs: peerPubRegistry,
+          signKeys: (mySignPubJwk && signPrivJwk) ? { pub: mySignPubJwk, priv: signPrivJwk } : null,
+          ecdhKeys: (myEcdhPubJwk && ecdhPrivJwk) ? { pub: myEcdhPubJwk, priv: ecdhPrivJwk } : null
         });
+
         const enc = new TextEncoder();
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const iv = crypto.getRandomValues(new Uint8Array(12));
         const key = await deriveKey(masterKey, salt);
-        const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(payload));
+        const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(payload));
 
         const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
         combined.set(salt, 0);
         combined.set(iv, salt.length);
         combined.set(new Uint8Array(encrypted), salt.length + iv.length);
 
-        localStorage.setItem('cipher_secure_vault_' + myCode, btoa(String.fromCharCode(...combined)));
+        await idbSet('vault_' + myCode, btoa(String.fromCharCode(...combined)));
       } catch (e) {
-        console.error("Error guardando bóveda");
+        console.error('Error guardando bóveda:', e);
       }
     }
 
-    async function getUniversalChannelSecret(partnerCode) {
-      const sorted = [myCode, partnerCode].sort().join('_');
-      return "CIPHER_SECURE_CHANNEL_" + sorted;
+    async function sendKeyExchange(targetCode) {
+      if (!mySignPubJwk || !myEcdhPubJwk || !targetCode || targetCode === myCode) return;
+      const pkt = await signPacketObj({
+        type: 'key_exchange',
+        from: myCode,
+        to: targetCode,
+        pubBundle: { signPub: mySignPubJwk, ecdhPub: myEcdhPubJwk },
+        ttl: 3
+      });
+      await dispatchPacket(pkt);
     }
 
     async function dispatchPacket(packet) {
-      const enriched = {
+      const clampedTtl = Math.min(Math.max(typeof packet.ttl === 'number' ? packet.ttl : 3, 1), 3);
+      const base = {
         ...packet,
         pktId: packet.pktId || ('pkt_' + Math.random().toString(36).substring(2, 11)),
-        ttl: typeof packet.ttl === 'number' ? packet.ttl : 5
+        ttl: clampedTtl
       };
-      seenPackets.add(enriched.pktId);
-
-      if (meshChannel) {
-        meshChannel.postMessage(enriched);
+      const signed = base.sig ? base : await signPacketObj(base);
+      const serialized = JSON.stringify(signed);
+      if (serialized.length > MAX_PACKET_BYTES) {
+        showToast('Paquete excede tamaño máximo permitido');
+        return;
       }
 
-      const peer = rtcPeers.get(enriched.to);
+      seenPackets.add(signed.pktId);
+
+      if (meshChannel) {
+        try { meshChannel.postMessage(signed); } catch (_) {}
+      }
+
+      const peer = rtcPeers.get(signed.to);
       if (peer && peer.dc && peer.dc.readyState === 'open') {
-        try {
-          peer.dc.send(JSON.stringify(enriched));
-        } catch (_) {}
+        try { peer.dc.send(serialized); } catch (_) {}
       }
 
       if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(enriched));
+        socket.send(serialized);
       }
     }
 
@@ -1119,15 +1293,16 @@
       entry = { pc, dc: null };
       rtcPeers.set(targetCode, entry);
 
-      pc.onicecandidate = (ev) => {
+      pc.onicecandidate = async (ev) => {
         if (ev.candidate) {
-          dispatchPacket({
+          const pkt = await signPacketObj({
             type: 'rtc_ice',
             from: myCode,
             to: targetCode,
-            candidate: ev.candidate,
-            ttl: 3
+            payload: JSON.stringify(ev.candidate),
+            ttl: 2
           });
+          dispatchPacket(pkt);
         }
       };
 
@@ -1142,13 +1317,14 @@
         bindDataChannel(dc);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        dispatchPacket({
+        const pkt = await signPacketObj({
           type: 'rtc_offer',
           from: myCode,
           to: targetCode,
-          sdp: offer,
-          ttl: 3
+          payload: JSON.stringify(offer),
+          ttl: 2
         });
+        dispatchPacket(pkt);
       }
       return entry;
     }
@@ -1156,8 +1332,9 @@
     function bindDataChannel(dc) {
       dc.onmessage = (ev) => {
         try {
-          const pkt = JSON.parse(ev.data);
-          handleIncomingPacket(pkt, 'P2P');
+          if (typeof ev.data === 'string' && ev.data.length <= MAX_PACKET_BYTES) {
+            handleIncomingPacket(JSON.parse(ev.data), 'P2P');
+          }
         } catch (_) {}
       };
     }
@@ -1176,7 +1353,7 @@
         socket = new WebSocket(WS_URL);
 
         socket.onopen = () => {
-          badge.textContent = 'MALLA + AES';
+          badge.textContent = 'ECDH + AES';
           badge.className = 'status-badge connected';
           if (myCode) {
             socket.send(JSON.stringify({ type: 'register', code: myCode }));
@@ -1186,24 +1363,37 @@
         socket.onclose = () => {
           badge.textContent = 'MALLA LOCAL...';
           badge.className = 'status-badge connecting';
-          setTimeout(initWebSocket, 2000);
+          setTimeout(initWebSocket, 2500);
         };
 
         socket.onmessage = (event) => {
           try {
-            const rawPacket = JSON.parse(event.data);
-            handleIncomingPacket(rawPacket, 'WS');
+            if (typeof event.data === 'string' && event.data.length > MAX_PACKET_BYTES) return;
+            handleIncomingPacket(JSON.parse(event.data), 'WS');
           } catch (e) {
-            console.error("Error procesando paquete entrante:", e);
+            console.error('Error procesando paquete entrante:', e);
           }
         };
       } catch (e) {
-        console.error("Excepción socket:", e);
+        console.error('Excepción socket:', e);
       }
+    }
+
+    function isRateLimited(senderId) {
+      const now = Date.now();
+      const key = senderId || 'UNKNOWN';
+      const arr = (senderRateMap.get(key) || []).filter(ts => now - ts < RATE_WINDOW_MS);
+      arr.push(now);
+      senderRateMap.set(key, arr);
+      return arr.length > MAX_MSGS_PER_WINDOW;
     }
 
     async function handleIncomingPacket(rawPacket, sourceVia) {
       try {
+        if (!rawPacket || typeof rawPacket !== 'object') return;
+        const serialized = JSON.stringify(rawPacket);
+        if (serialized.length > MAX_PACKET_BYTES) return;
+
         if (rawPacket.pktId) {
           if (seenPackets.has(rawPacket.pktId)) return;
           seenPackets.add(rawPacket.pktId);
@@ -1212,12 +1402,14 @@
           }
         }
 
-        if (rawPacket.from && blockedChats.has(String(rawPacket.from).toUpperCase())) {
-          return;
-        }
+        const senderUpper = String(rawPacket.from || '').toUpperCase();
+        if (senderUpper && blockedChats.has(senderUpper)) return;
 
+        if (isRateLimited(senderUpper || sourceVia)) return;
+
+        // Retransmisión en malla con TTL acotado
         if (rawPacket.to && rawPacket.to !== myCode && typeof rawPacket.ttl === 'number' && rawPacket.ttl > 0 && sourceVia !== 'WS') {
-          const relayPkt = { ...rawPacket, ttl: rawPacket.ttl - 1 };
+          const relayPkt = { ...rawPacket, ttl: Math.min(rawPacket.ttl - 1, 2) };
           if (meshChannel) meshChannel.postMessage(relayPkt);
           if (socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify(relayPkt));
@@ -1225,34 +1417,62 @@
           return;
         }
 
-        if (rawPacket.type === 'rtc_offer' && rawPacket.to === myCode) {
+        if (!myCode || !masterKey || rawPacket.to !== myCode) return;
+
+        // Intercambio de claves públicas ECDH + ECDSA
+        if (rawPacket.type === 'key_exchange' && rawPacket.from && rawPacket.pubBundle) {
+          const { signPub, ecdhPub } = rawPacket.pubBundle;
+          if (!signPub || !ecdhPub) return;
+          const validSelfSig = await verifyPacketSig(rawPacket, signPub);
+          if (!validSelfSig) return;
+
+          peerPubRegistry[rawPacket.from] = { signPub, ecdhPub };
+          sessionAesKeys.delete(rawPacket.from);
+          await getSessionAesKey(rawPacket.from);
+          await saveLocalChats();
+          return;
+        }
+
+        // Verificar firma ECDSA para paquetes de remitentes conocidos
+        const knownPeer = peerPubRegistry[rawPacket.from];
+        if (rawPacket.type !== 'chat_request' && knownPeer && knownPeer.signPub) {
+          const okSig = await verifyPacketSig(rawPacket, knownPeer.signPub);
+          if (!okSig) {
+            console.warn('Firma inválida descartada de', rawPacket.from);
+            return;
+          }
+        }
+
+        if (rawPacket.type === 'rtc_offer' && rawPacket.payload) {
           const entry = await ensurePeerConnection(rawPacket.from, false);
           if (entry) {
-            await entry.pc.setRemoteDescription(new RTCSessionDescription(rawPacket.sdp));
+            const sdp = JSON.parse(rawPacket.payload);
+            await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp));
             const answer = await entry.pc.createAnswer();
             await entry.pc.setLocalDescription(answer);
-            dispatchPacket({ type: 'rtc_answer', from: myCode, to: rawPacket.from, sdp: answer, ttl: 3 });
+            const pkt = await signPacketObj({ type: 'rtc_answer', from: myCode, to: rawPacket.from, payload: JSON.stringify(answer), ttl: 2 });
+            dispatchPacket(pkt);
           }
           return;
         }
 
-        if (rawPacket.type === 'rtc_answer' && rawPacket.to === myCode) {
+        if (rawPacket.type === 'rtc_answer' && rawPacket.payload) {
           const entry = rtcPeers.get(rawPacket.from);
           if (entry && entry.pc) {
-            await entry.pc.setRemoteDescription(new RTCSessionDescription(rawPacket.sdp));
+            await entry.pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(rawPacket.payload)));
           }
           return;
         }
 
-        if (rawPacket.type === 'rtc_ice' && rawPacket.to === myCode) {
+        if (rawPacket.type === 'rtc_ice' && rawPacket.payload) {
           const entry = rtcPeers.get(rawPacket.from);
-          if (entry && entry.pc && rawPacket.candidate) {
-            await entry.pc.addIceCandidate(new RTCIceCandidate(rawPacket.candidate)).catch(() => {});
+          if (entry && entry.pc) {
+            await entry.pc.addIceCandidate(new RTCIceCandidate(JSON.parse(rawPacket.payload))).catch(() => {});
           }
           return;
         }
 
-        if (rawPacket.type === 'typing' && rawPacket.to === myCode) {
+        if (rawPacket.type === 'typing') {
           if (currentTarget === rawPacket.from) {
             const ind = document.getElementById('typingIndicator');
             ind.textContent = 'escribiendo...';
@@ -1262,15 +1482,22 @@
           return;
         }
 
-        if (rawPacket.type === 'reaction' && rawPacket.to === myCode) {
-          const channelSecret = await getUniversalChannelSecret(rawPacket.from);
-          const rData = await decryptPayload(rawPacket.payload, channelSecret);
+        if (rawPacket.type === 'reaction') {
+          const rData = await decryptWithSessionKey(rawPacket.payload, rawPacket.from);
           applyReactionToMessage(rawPacket.from, rData.msgId, rData.emoji, rawPacket.from);
           await saveLocalChats();
           return;
         }
 
-        if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
+        if (rawPacket.type === 'chat_request') {
+          if (rawPacket.pubBundle && rawPacket.pubBundle.signPub && rawPacket.pubBundle.ecdhPub) {
+            const validReqSig = await verifyPacketSig(rawPacket, rawPacket.pubBundle.signPub);
+            if (!validReqSig) return;
+            peerPubRegistry[rawPacket.from] = rawPacket.pubBundle;
+            sessionAesKeys.delete(rawPacket.from);
+            await getSessionAesKey(rawPacket.from);
+            await saveLocalChats();
+          }
           pendingRequester = rawPacket.from;
           ensureChatExists(pendingRequester);
           document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro contigo.`;
@@ -1279,12 +1506,12 @@
           return;
         }
 
-        if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
+        if (rawPacket.type === 'chat_response') {
           if (rawPacket.accepted) {
             approvedChats.add(rawPacket.from);
             ensureChatExists(rawPacket.from);
             chatsData[rawPacket.from].approved = true;
-            saveLocalChats();
+            await saveLocalChats();
             renderChatList();
             showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
             if (currentTarget === rawPacket.from) {
@@ -1301,7 +1528,7 @@
           return;
         }
 
-        if (rawPacket.type === 'msg' && rawPacket.to === myCode) {
+        if (rawPacket.type === 'msg') {
           if (!approvedChats.has(rawPacket.from)) {
             pendingRequester = rawPacket.from;
             document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
@@ -1310,9 +1537,7 @@
             return;
           }
 
-          const channelSecret = await getUniversalChannelSecret(rawPacket.from);
-          const decrypted = await decryptPayload(rawPacket.payload, channelSecret);
-          
+          const decrypted = await decryptWithSessionKey(rawPacket.payload, rawPacket.from);
           ensureChatExists(rawPacket.from);
           chatsData[rawPacket.from].approved = true;
 
@@ -1341,20 +1566,21 @@
             sendAck(decrypted.id, '●● LEÍDO', rawPacket.from);
           }
 
-          saveLocalChats();
+          await saveLocalChats();
           renderChatList();
         }
       } catch (e) {
-        console.error("Error procesando paquete entrante:", e);
+        console.error('Error procesando paquete entrante:', e);
       }
     }
 
-    function notifyTyping() {
+    async function notifyTyping() {
       if (!currentTarget) return;
       const now = Date.now();
       if (now - lastTypingSent > 1200) {
         lastTypingSent = now;
-        dispatchPacket({ type: 'typing', from: myCode, to: currentTarget, ttl: 2 });
+        const pkt = await signPacketObj({ type: 'typing', from: myCode, to: currentTarget, ttl: 2 });
+        dispatchPacket(pkt);
       }
     }
 
@@ -1378,14 +1604,12 @@
         gain.connect(audioCtx.destination);
         osc.start();
         osc.stop(audioCtx.currentTime + 0.15);
-      } catch (e) {
-        console.log("Audio omitido");
-      }
+      } catch (_) {}
     }
 
     function triggerNotification(senderCode) {
-      if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(`CIPHER // Nuevo Mensaje`, {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('CIPHER // Nuevo Mensaje', {
           body: `Mensaje cifrado recibido de [${senderCode}]`,
           icon: './manifest.json'
         });
@@ -1403,15 +1627,15 @@
     }
 
     function openNewChatPrompt() {
-      const code = prompt("Introduce el Código Único del nodo (Ej. CIPHER-A1B2C3):");
+      const code = prompt('Introduce el Código Único del nodo (Ej. CIPHER-A1B2C3):');
       if (!code) return;
       const target = code.trim().toUpperCase();
       if (target === myCode) {
-        showToast("No puedes chatear contigo mismo");
+        showToast('No puedes chatear contigo mismo');
         return;
       }
       if (blockedChats.has(target)) {
-        showToast("Este código está bloqueado");
+        showToast('Este código está bloqueado');
         return;
       }
       openChat(target);
@@ -1421,8 +1645,9 @@
       currentTarget = code;
       cancelReply();
       ensureChatExists(code);
+      sendKeyExchange(code);
       ensurePeerConnection(code, true);
-      
+
       chatsData[code].unread = 0;
       saveLocalChats();
 
@@ -1433,7 +1658,7 @@
 
       const container = document.getElementById('chatMessages');
       container.innerHTML = '<div class="message system">Historial seguro cargado.</div>';
-      
+
       chatsData[code].messages.forEach(msg => {
         appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status, msg.time, msg.reactions || []);
       });
@@ -1468,7 +1693,7 @@
           ? (lastMsg.startsWith('data:audio') ? '🎙️ Nota de voz' : (lastMsg.startsWith('data:image') ? '🖼️ Imagen' : (lastMsg.startsWith('data:video') ? '🎥 Vídeo' : lastMsg.substring(0, 24))))
           : '[Archivo]';
         const unreadBadge = chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : '';
-        
+
         html += `
           <div class="chat-item">
             <div class="chat-item-info" onclick="openChat('${code}')">
@@ -1490,6 +1715,8 @@
         blockedChats.add(code);
         delete chatsData[code];
         approvedChats.delete(code);
+        delete peerPubRegistry[code];
+        sessionAesKeys.delete(code);
         saveLocalChats();
         renderChatList();
         showToast(`[${code}] bloqueado`);
@@ -1501,6 +1728,8 @@
       if (pendingRequester) {
         blockedChats.add(pendingRequester);
         delete chatsData[pendingRequester];
+        delete peerPubRegistry[pendingRequester];
+        sessionAesKeys.delete(pendingRequester);
         saveLocalChats();
         renderChatList();
         showToast(`[${pendingRequester}] bloqueado`);
@@ -1512,76 +1741,56 @@
       if (confirm(`¿Estás seguro de borrar el chat con [${code}]?`)) {
         delete chatsData[code];
         approvedChats.delete(code);
+        sessionAesKeys.delete(code);
         saveLocalChats();
         renderChatList();
         showToast('Chat eliminado');
       }
     }
 
-    function respondRequest(accepted) {
+    async function respondRequest(accepted) {
       document.getElementById('requestModal').style.display = 'none';
+      const targetReq = pendingRequester;
+      pendingRequester = null;
 
-      if (accepted && pendingRequester) {
-        approvedChats.add(pendingRequester);
-        ensureChatExists(pendingRequester);
-        chatsData[pendingRequester].approved = true;
-        saveLocalChats();
-        ensurePeerConnection(pendingRequester, false);
-        showToast(`Canal abierto con [${pendingRequester}]`);
+      if (accepted && targetReq) {
+        approvedChats.add(targetReq);
+        ensureChatExists(targetReq);
+        chatsData[targetReq].approved = true;
+        await sendKeyExchange(targetReq);
+        await saveLocalChats();
+        ensurePeerConnection(targetReq, false);
+        showToast(`Canal abierto con [${targetReq}]`);
         renderChatList();
       }
 
-      if (pendingRequester) {
-        dispatchPacket({
+      if (targetReq) {
+        const pkt = await signPacketObj({
           type: 'chat_response',
           from: myCode,
-          to: pendingRequester,
+          to: targetReq,
           accepted: accepted,
-          ttl: 4
+          ttl: 3
         });
+        dispatchPacket(pkt);
       }
-      pendingRequester = null;
     }
 
-    function sendAck(msgId, statusText, targetCode) {
-      dispatchPacket({ type: 'ack', msgId: msgId, status: statusText, target: targetCode, to: targetCode, ttl: 4 });
+    async function sendAck(msgId, statusText, targetCode) {
+      const pkt = await signPacketObj({ type: 'ack', msgId, status: statusText, target: targetCode, to: targetCode, ttl: 3 });
+      dispatchPacket(pkt);
     }
 
     async function deriveKey(password, salt) {
       const enc = new TextEncoder();
       const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']);
       return crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
+        { name: 'PBKDF2', salt: salt, iterations: 150000, hash: 'SHA-256' },
         keyMaterial,
         { name: 'AES-GCM', length: 256 },
         false,
         ['encrypt', 'decrypt']
       );
-    }
-
-    async function encryptPayload(dataObj, password) {
-      const enc = new TextEncoder();
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      const key = await deriveKey(password, salt);
-      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(dataObj)));
-
-      const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
-      combined.set(salt, 0);
-      combined.set(iv, salt.length);
-      combined.set(new Uint8Array(encrypted), salt.length + iv.length);
-      return btoa(String.fromCharCode(...combined));
-    }
-
-    async function decryptPayload(base64Data, password) {
-      const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-      const salt = combined.slice(0, 16);
-      const iv = combined.slice(16, 28);
-      const data = combined.slice(28);
-
-      const key = await deriveKey(password, salt);
-      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
-      return JSON.parse(new TextDecoder().decode(decrypted));
     }
 
     function setReply(msgId, previewText) {
@@ -1601,11 +1810,11 @@
       applyReactionToMessage(currentTarget, msgId, emoji, myCode);
       await saveLocalChats();
       try {
-        const channelSecret = await getUniversalChannelSecret(currentTarget);
-        const encryptedPayload = await encryptPayload({ msgId, emoji }, channelSecret);
-        dispatchPacket({ type: 'reaction', from: myCode, to: currentTarget, payload: encryptedPayload, ttl: 4 });
+        const encryptedPayload = await encryptWithSessionKey({ msgId, emoji }, currentTarget);
+        const pkt = await signPacketObj({ type: 'reaction', from: myCode, to: currentTarget, payload: encryptedPayload, ttl: 3 });
+        dispatchPacket(pkt);
       } catch (e) {
-        console.error("Error enviando reacción", e);
+        console.error('Error enviando reacción:', e);
       }
     }
 
@@ -1660,7 +1869,7 @@
           btn.classList.add('recording');
           btn.textContent = '⏹️';
           showToast('Grabando nota de voz...');
-        } catch (e) {
+        } catch (_) {
           showToast('Permiso de micrófono denegado');
         }
       } else {
@@ -1671,7 +1880,7 @@
       }
     }
 
-    async function sendMessageToTarget(targetCode, type, contentOverride = null) {
+    async function sendMessageToTarget(targetCode, type, contentOverride = null, anonymousSender = false) {
       if (!masterKey) {
         showToast('Clave maestra requerida');
         return false;
@@ -1683,12 +1892,13 @@
 
       if (!text && type === 'text') return false;
 
+      const senderLabel = anonymousSender ? 'ANON' : myCode;
       ensureChatExists(targetCode);
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
       const replySnapshot = (currentTarget === targetCode && replyingTo) ? { ...replyingTo } : null;
       const dataObj = {
         id: msgId,
-        from: myCode,
+        from: senderLabel,
         type: type,
         content: text,
         timer: timer,
@@ -1701,9 +1911,16 @@
         chatsData[targetCode].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE', time: timeString, reactions: [] });
         await saveLocalChats();
         if (currentTarget === targetCode) {
-          appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE', timeString, []);
+          appendMessageToDOM(dataObj, 'sent', timer, reqId, senderLabel, '⏳ SOLICITUD PENDIENTE', timeString, []);
         }
-        dispatchPacket({ type: 'chat_request', from: myCode, to: targetCode, ttl: 5 });
+        const reqPkt = await signPacketObj({
+          type: 'chat_request',
+          from: myCode,
+          to: targetCode,
+          pubBundle: (mySignPubJwk && myEcdhPubJwk) ? { signPub: mySignPubJwk, ecdhPub: myEcdhPubJwk } : null,
+          ttl: 3
+        });
+        dispatchPacket(reqPkt);
         renderChatList();
         return true;
       }
@@ -1711,23 +1928,24 @@
       chatsData[targetCode].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA', time: timeString, reactions: [] });
       await saveLocalChats();
       if (currentTarget === targetCode) {
-        appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA', timeString, []);
+        appendMessageToDOM(dataObj, 'sent', timer, msgId, senderLabel, '⏳ EN ESPERA', timeString, []);
       }
 
       try {
-        const channelSecret = await getUniversalChannelSecret(targetCode);
-        const encryptedBase64 = await encryptPayload(dataObj, channelSecret);
-        
-        dispatchPacket({ type: 'msg', from: myCode, to: targetCode, payload: encryptedBase64, ttl: 5 });
+        await sendKeyExchange(targetCode);
+        const encryptedBase64 = await encryptWithSessionKey(dataObj, targetCode);
+        const pkt = await signPacketObj({ type: 'msg', from: myCode, to: targetCode, payload: encryptedBase64, ttl: 3 });
+        dispatchPacket(pkt);
         if (currentTarget === targetCode) {
-          updateMessageStatus(msgId, '✓ ENVIADO');
+          updateMessageStatus(msgId, '✓ CIFRADO');
         }
         renderChatList();
         return true;
       } catch (e) {
-        showToast('Error de cifrado');
+        console.error(e);
+        showToast('Intercambiando claves ECDH, reintenta');
         if (currentTarget === targetCode) {
-          updateMessageStatus(msgId, '❌ ERROR');
+          updateMessageStatus(msgId, '⏳ CLAVES');
         }
         return false;
       }
@@ -1735,7 +1953,7 @@
 
     async function sendMessage(type, contentOverride = null) {
       if (!currentTarget) return;
-      const ok = await sendMessageToTarget(currentTarget, type, contentOverride);
+      const ok = await sendMessageToTarget(currentTarget, type, contentOverride, false);
       if (ok && contentOverride === null) {
         document.getElementById('messageInput').value = '';
         cancelReply();
@@ -1925,7 +2143,8 @@
         showToast('Configura tu código destino en Ajustes');
         return;
       }
-      const ok = await sendMessageToTarget(targetCode, 'text', `💡 Sugerencia: ${txt}`);
+      const isAnon = document.getElementById('cfgAnonSuggest').checked;
+      const ok = await sendMessageToTarget(targetCode, 'text', `💡 Sugerencia: ${txt}`, isAnon);
       if (ok) {
         document.getElementById('suggestionInput').value = '';
         closeSuggestionsModal();
@@ -2001,13 +2220,13 @@
           <button class="msg-tool-btn" onclick="sendReaction('${msgId}', '❤️')">❤️</button>
           <button class="msg-tool-btn" onclick="sendReaction('${msgId}', '🔥')">🔥</button>
         </div>`;
-      
+
       innerHTML += `
         <div class="msg-meta">
           <span>${metaLabel}</span>
           <span style="margin-left:auto; color:var(--text-muted);">${displayTime}</span>
         </div>`;
-      
+
       div.innerHTML = innerHTML;
       container.appendChild(div);
       renderReactionsDOM(msgId, reactions);
@@ -2042,17 +2261,40 @@
       }
     }
 
-    function triggerKillSwitch() {
+    async function triggerKillSwitch() {
       masterKey = '';
+      myCode = '';
+      currentTarget = '';
       chatsData = {};
       approvedChats.clear();
       blockedChats.clear();
       seenPackets.clear();
-      rtcPeers.forEach(p => p.pc && p.pc.close());
+      sessionAesKeys.clear();
+      peerPubRegistry = {};
+      signKeyPair = null;
+      ecdhKeyPair = null;
+      mySignPubJwk = null;
+      myEcdhPubJwk = null;
+      senderRateMap.clear();
+      rtcPeers.forEach(p => {
+        try { if (p.dc) p.dc.close(); } catch (_) {}
+        try { if (p.pc) p.pc.close(); } catch (_) {}
+      });
       rtcPeers.clear();
-      localStorage.clear();
+
+      try { localStorage.clear(); } catch (_) {}
+      try { await idbClear(); } catch (_) {}
+
       document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EJECUTADA. BOVEDA DESTRUIDA.</div>';
-      if (socket) socket.close();
+      document.getElementById('chatList').innerHTML = '';
+      document.getElementById('editorStage').innerHTML = '';
+      document.getElementById('viewerStage').innerHTML = '';
+
+      if (socket) {
+        try { socket.onclose = null; socket.close(); } catch (_) {}
+        socket = null;
+      }
+
       document.getElementById('chatView').classList.remove('active');
       document.getElementById('homeView').classList.remove('active');
       document.getElementById('authView').classList.add('active');
@@ -2063,11 +2305,11 @@
       const toast = document.getElementById('toast');
       toast.textContent = msg;
       toast.style.display = 'block';
-      setTimeout(() => toast.style.display = 'none', 2000);
+      setTimeout(() => { toast.style.display = 'none'; }, 2000);
     }
 
     function escapeHTML(str) {
-      return String(str).replace(/[&<>'"]/g, 
+      return String(str).replace(/[&<>'"]/g,
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
       );
     }
