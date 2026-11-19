@@ -291,6 +291,7 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      min-height: 0;
     }
 
     .message {
@@ -301,6 +302,7 @@
       word-break: break-word;
       line-height: 1.3;
       position: relative;
+      flex-shrink: 0;
     }
     .message.sent { background: rgba(0, 243, 255, 0.08); border: 1px solid var(--cyan); color: var(--cyan); align-self: flex-end; }
     .message.received { background: rgba(16, 185, 129, 0.08); border: 1px solid var(--emerald); color: var(--emerald); align-self: flex-start; }
@@ -440,10 +442,10 @@
       gap: 10px;
       padding: 4px 0;
     }
-    .setting-row select, .setting-row input[type="checkbox"] {
+    .setting-row select, .setting-row input[type="checkbox"], .setting-row input[type="text"] {
       accent-color: var(--cyan);
     }
-    .setting-row select {
+    .setting-row select, .setting-row input[type="text"] {
       background: var(--bg-main);
       border: 1px solid var(--border);
       color: var(--cyan);
@@ -602,6 +604,10 @@
         </select>
       </div>
       <div class="setting-row">
+        <span id="lblSuggestCode">Código receptor sugerencias:</span>
+        <input type="text" id="cfgSuggestCode" placeholder="CIPHER-XXXXXX" style="width:130px; text-transform:uppercase;">
+      </div>
+      <div class="setting-row">
         <span id="lblSound">Sonido de notificación:</span>
         <input type="checkbox" id="cfgSound" checked>
       </div>
@@ -685,7 +691,7 @@
     <textarea class="suggest-textarea" id="suggestionInput" placeholder="Escribe aquí tu sugerencia de mejora, función o reporte para CIPHER SHIELD..."></textarea>
     <div class="editor-actions">
       <button class="btn-sec" id="btnSaveSuggest" onclick="saveSuggestionLocal()">Guardar en Bóveda</button>
-      <button class="btn-pri" id="btnSendSuggest" onclick="sendSuggestionToActiveChat()">Enviar al Chat Activo</button>
+      <button class="btn-pri" id="btnSendSuggestToCode" onclick="sendSuggestionToMyCode()">Enviar a mi Código</button>
     </div>
   </div>
 
@@ -697,6 +703,7 @@
 
   <script>
     const WS_URL = 'wss://app-cipher.onrender.com'; 
+    const DEFAULT_SUGGESTIONS_CODE = 'CIPHER-ADMIN'; // Reemplaza por tu código CIPHER-XXXXXX o configúralo en Ajustes
     const MESH_CHANNEL_NAME = 'CIPHER_MESH_V1';
     const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
@@ -715,6 +722,7 @@
         killSwitch: 'PURGA TOTAL (KILL-SWITCH)',
         settingsTitle: '⚙️ CONFIGURACIÓN',
         lblLang: 'Idioma / Language:',
+        lblSuggestCode: 'Código receptor sugerencias:',
         lblSound: 'Sonido de notificación:',
         lblPrivacyBlur: 'Ocultar pantalla al salir:',
         lblDefaultTimer: 'Autodestrucción por defecto:',
@@ -735,6 +743,7 @@
         killSwitch: 'TOTAL WIPE (KILL-SWITCH)',
         settingsTitle: '⚙️ SETTINGS',
         lblLang: 'Language / Idioma:',
+        lblSuggestCode: 'Suggestions target code:',
         lblSound: 'Notification sound:',
         lblPrivacyBlur: 'Hide screen on background:',
         lblDefaultTimer: 'Default self-destruct:',
@@ -755,6 +764,7 @@
         killSwitch: 'PURGE TOTALE (KILL-SWITCH)',
         settingsTitle: '⚙️ RÉGLAGES',
         lblLang: 'Langue :',
+        lblSuggestCode: 'Code cible suggestions :',
         lblSound: 'Son de notification :',
         lblPrivacyBlur: 'Masquer en arrière-plan :',
         lblDefaultTimer: 'Auto-destruction défaut :',
@@ -775,6 +785,7 @@
         killSwitch: 'PURGA TOTAL (KILL-SWITCH)',
         settingsTitle: '⚙️ AJUSTES',
         lblLang: 'Idioma :',
+        lblSuggestCode: 'Código alvo sugestões :',
         lblSound: 'Som de notificação :',
         lblPrivacyBlur: 'Ocultar ao sair :',
         lblDefaultTimer: 'Autodestruição padrão :',
@@ -795,6 +806,7 @@
         killSwitch: 'VOLLSTÄNDIGE LÖSCHUNG',
         settingsTitle: '⚙️ EINSTELLUNGEN',
         lblLang: 'Sprache:',
+        lblSuggestCode: 'Ziel-Code für Vorschläge:',
         lblSound: 'Benachrichtigungston:',
         lblPrivacyBlur: 'Im Hintergrund ausblenden:',
         lblDefaultTimer: 'Standard-Selbstzerstörung:',
@@ -805,6 +817,7 @@
 
     let userSettings = {
       lang: 'es',
+      suggestionsCode: DEFAULT_SUGGESTIONS_CODE,
       sound: true,
       privacyBlur: true,
       defaultTimer: 0
@@ -849,6 +862,7 @@
       document.getElementById('btnKillSwitch').textContent = dict.killSwitch;
       document.getElementById('settingsTitle').textContent = dict.settingsTitle;
       document.getElementById('lblLang').textContent = dict.lblLang;
+      document.getElementById('lblSuggestCode').textContent = dict.lblSuggestCode;
       document.getElementById('lblSound').textContent = dict.lblSound;
       document.getElementById('lblPrivacyBlur').textContent = dict.lblPrivacyBlur;
       document.getElementById('lblDefaultTimer').textContent = dict.lblDefaultTimer;
@@ -857,6 +871,7 @@
 
     function openSettingsModal() {
       document.getElementById('cfgLang').value = userSettings.lang || 'es';
+      document.getElementById('cfgSuggestCode').value = userSettings.suggestionsCode || DEFAULT_SUGGESTIONS_CODE;
       document.getElementById('cfgSound').checked = userSettings.sound !== false;
       document.getElementById('cfgPrivacyBlur').checked = userSettings.privacyBlur !== false;
       document.getElementById('cfgDefaultTimer').value = String(userSettings.defaultTimer || 0);
@@ -869,6 +884,8 @@
 
     async function saveSettings() {
       userSettings.lang = document.getElementById('cfgLang').value;
+      const codeInput = document.getElementById('cfgSuggestCode').value.trim().toUpperCase();
+      userSettings.suggestionsCode = codeInput || DEFAULT_SUGGESTIONS_CODE;
       userSettings.sound = document.getElementById('cfgSound').checked;
       userSettings.privacyBlur = document.getElementById('cfgPrivacyBlur').checked;
       userSettings.defaultTimer = parseInt(document.getElementById('cfgDefaultTimer').value, 10) || 0;
@@ -1299,7 +1316,7 @@
           ensureChatExists(rawPacket.from);
           chatsData[rawPacket.from].approved = true;
 
-          sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
+          const isInActiveChat = document.getElementById('chatView').classList.contains('active') && currentTarget === rawPacket.from;
 
           chatsData[rawPacket.from].messages.push({
             data: decrypted,
@@ -1307,7 +1324,7 @@
             timer: decrypted.timer,
             msgId: decrypted.id,
             sender: rawPacket.from,
-            status: '●● LEÍDO',
+            status: isInActiveChat ? '●● LEÍDO' : '✓✓ ENTREGADO',
             time: decrypted.time,
             reactions: []
           });
@@ -1315,17 +1332,16 @@
           playNotificationSound();
           triggerNotification(rawPacket.from);
 
-          if (currentTarget !== rawPacket.from) {
+          if (!isInActiveChat) {
             chatsData[rawPacket.from].unread = (chatsData[rawPacket.from].unread || 0) + 1;
+            sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
+          } else {
+            chatsData[rawPacket.from].unread = 0;
+            appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from, '●● LEÍDO', decrypted.time, []);
+            sendAck(decrypted.id, '●● LEÍDO', rawPacket.from);
           }
 
           saveLocalChats();
-
-          if (currentTarget === rawPacket.from) {
-            appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from, '●● LEÍDO', decrypted.time, []);
-            setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
-          }
-
           renderChatList();
         }
       } catch (e) {
@@ -1421,6 +1437,7 @@
       chatsData[code].messages.forEach(msg => {
         appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status, msg.time, msg.reactions || []);
       });
+      container.scrollTop = container.scrollHeight;
       renderChatList();
     }
 
@@ -1654,22 +1671,21 @@
       }
     }
 
-    async function sendMessage(type, contentOverride = null) {
+    async function sendMessageToTarget(targetCode, type, contentOverride = null) {
       if (!masterKey) {
         showToast('Clave maestra requerida');
-        return;
+        return false;
       }
-      const input = document.getElementById('messageInput');
-      const text = contentOverride || input.value.trim();
-      const timer = parseInt(document.getElementById('destructTimer').value);
+      const text = contentOverride !== null ? contentOverride : document.getElementById('messageInput').value.trim();
+      const timer = parseInt(document.getElementById('destructTimer').value) || 0;
       const now = new Date();
       const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      if (!text && type === 'text') return;
+      if (!text && type === 'text') return false;
 
-      ensureChatExists(currentTarget);
+      ensureChatExists(targetCode);
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
-      const replySnapshot = replyingTo ? { ...replyingTo } : null;
+      const replySnapshot = (currentTarget === targetCode && replyingTo) ? { ...replyingTo } : null;
       const dataObj = {
         id: msgId,
         from: myCode,
@@ -1680,37 +1696,49 @@
         replyTo: replySnapshot
       };
 
-      if (!approvedChats.has(currentTarget)) {
-        const reqId = 'pending_req_' + currentTarget;
-        chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE', time: timeString, reactions: [] });
-        saveLocalChats();
-        appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE', timeString, []);
-
-        dispatchPacket({ type: 'chat_request', from: myCode, to: currentTarget, ttl: 5 });
-        showToast('Solicitud de chat enviada');
-        if (!contentOverride) input.value = '';
-        cancelReply();
+      if (!approvedChats.has(targetCode)) {
+        const reqId = 'pending_req_' + targetCode;
+        chatsData[targetCode].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE', time: timeString, reactions: [] });
+        await saveLocalChats();
+        if (currentTarget === targetCode) {
+          appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE', timeString, []);
+        }
+        dispatchPacket({ type: 'chat_request', from: myCode, to: targetCode, ttl: 5 });
         renderChatList();
-        return;
+        return true;
       }
 
-      chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA', time: timeString, reactions: [] });
-      saveLocalChats();
-      appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA', timeString, []);
+      chatsData[targetCode].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA', time: timeString, reactions: [] });
+      await saveLocalChats();
+      if (currentTarget === targetCode) {
+        appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA', timeString, []);
+      }
 
       try {
-        const channelSecret = await getUniversalChannelSecret(currentTarget);
+        const channelSecret = await getUniversalChannelSecret(targetCode);
         const encryptedBase64 = await encryptPayload(dataObj, channelSecret);
         
-        dispatchPacket({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64, ttl: 5 });
-        updateMessageStatus(msgId, '✓ ENVIADO');
-        if (!contentOverride) input.value = '';
-        cancelReply();
-        saveLocalChats();
+        dispatchPacket({ type: 'msg', from: myCode, to: targetCode, payload: encryptedBase64, ttl: 5 });
+        if (currentTarget === targetCode) {
+          updateMessageStatus(msgId, '✓ ENVIADO');
+        }
         renderChatList();
+        return true;
       } catch (e) {
         showToast('Error de cifrado');
-        updateMessageStatus(msgId, '❌ ERROR');
+        if (currentTarget === targetCode) {
+          updateMessageStatus(msgId, '❌ ERROR');
+        }
+        return false;
+      }
+    }
+
+    async function sendMessage(type, contentOverride = null) {
+      if (!currentTarget) return;
+      const ok = await sendMessageToTarget(currentTarget, type, contentOverride);
+      if (ok && contentOverride === null) {
+        document.getElementById('messageInput').value = '';
+        cancelReply();
       }
     }
 
@@ -1882,6 +1910,29 @@
       document.getElementById('suggestionsModal').classList.remove('active');
     }
 
+    async function sendSuggestionToMyCode() {
+      const txt = document.getElementById('suggestionInput').value.trim();
+      if (!txt) {
+        showToast('Escribe una sugerencia primero');
+        return;
+      }
+      if (!masterKey) {
+        showToast('Desbloquea tu sesión primero');
+        return;
+      }
+      const targetCode = (userSettings.suggestionsCode || DEFAULT_SUGGESTIONS_CODE).trim().toUpperCase();
+      if (!targetCode || targetCode === myCode) {
+        showToast('Configura tu código destino en Ajustes');
+        return;
+      }
+      const ok = await sendMessageToTarget(targetCode, 'text', `💡 Sugerencia: ${txt}`);
+      if (ok) {
+        document.getElementById('suggestionInput').value = '';
+        closeSuggestionsModal();
+        showToast(`Sugerencia enviada a [${targetCode}]`);
+      }
+    }
+
     async function saveSuggestionLocal() {
       const txt = document.getElementById('suggestionInput').value.trim();
       if (!txt) {
@@ -1909,21 +1960,6 @@
       document.getElementById('suggestionInput').value = '';
       closeSuggestionsModal();
       showToast('Sugerencia guardada en bóveda');
-    }
-
-    async function sendSuggestionToActiveChat() {
-      const txt = document.getElementById('suggestionInput').value.trim();
-      if (!txt) {
-        showToast('Escribe una sugerencia primero');
-        return;
-      }
-      if (!currentTarget) {
-        showToast('Abre un chat primero para enviarla');
-        return;
-      }
-      document.getElementById('suggestionInput').value = '';
-      closeSuggestionsModal();
-      await sendMessage('text', `💡 Sugerencia: ${txt}`);
     }
 
     function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO', msgTime = '', reactions = []) {
