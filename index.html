@@ -137,6 +137,17 @@
       letter-spacing: 1px;
       margin-top: 5px;
     }
+    .btn-reset-id {
+      background: transparent;
+      border: 1px solid var(--warning);
+      color: var(--warning);
+      padding: 7px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.68rem;
+      font-weight: bold;
+      margin-top: 12px;
+    }
 
     .home-header {
       display: flex;
@@ -200,8 +211,8 @@
     .unread-badge {
       background: var(--cyan);
       color: var(--bg-main);
-      font-size: 0.6rem;
-      padding: 2px 6px;
+      font-size: 0.62rem;
+      padding: 2px 7px;
       border-radius: 10px;
       font-weight: bold;
     }
@@ -262,22 +273,22 @@
     }
 
     .request-modal {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
+      position: fixed;
+      inset: 0;
       background: rgba(7, 10, 16, 0.96);
       display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       padding: 20px;
-      z-index: 500;
+      z-index: 1100;
       text-align: center;
     }
     .request-modal h3 { color: var(--cyan); font-size: 1rem; margin-bottom: 10px; }
-    .request-modal p { font-size: 0.75rem; color: var(--text-main); margin-bottom: 15px; }
-    .modal-actions { display: flex; gap: 8px; width: 100%; max-width: 280px; }
-    .btn-accept { flex: 1; background: var(--emerald); color: var(--bg-main); border: none; padding: 8px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.72rem; }
-    .btn-reject { flex: 1; background: var(--danger); color: var(--text-main); border: none; padding: 8px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.72rem; }
+    .request-modal p { font-size: 0.78rem; color: var(--text-main); margin-bottom: 16px; line-height: 1.4; }
+    .modal-actions { display: flex; gap: 8px; width: 100%; max-width: 300px; }
+    .btn-accept { flex: 1; background: var(--emerald); color: var(--bg-main); border: none; padding: 9px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.72rem; }
+    .btn-reject { flex: 1; background: var(--danger); color: var(--text-main); border: none; padding: 9px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.72rem; }
 
     .chat-messages {
       flex: 1;
@@ -508,7 +519,7 @@
       <h1>CIPHER SHIELD</h1>
     </div>
     <div class="header-right">
-      <button class="btn-header" id="btnOpenSuggest" onclick="openSuggestionsModal()">💡 Sugerencias</button>
+      <button class="btn-header" id="btnOpenSuggest" onclick="openSuggestionsModal()">💡 Ayuda/Sug.</button>
       <button class="btn-header" id="btnOpenSettings" onclick="openSettingsModal()">⚙️ Ajustes</button>
       <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
     </div>
@@ -520,6 +531,7 @@
       <p id="authDesc">Introduce tu Clave Maestra para desbloquear tu identidad criptográfica.</p>
       <input type="password" id="masterKeyInput" placeholder="Clave Maestra..." autocomplete="off">
       <button class="btn-auth" id="btnAuthSubmit" onclick="triggerAuth()">ACCEDER</button>
+      <button class="btn-reset-id" id="btnResetAuthId" onclick="resetIdentityFromAuth()">🔄 Restablecer y Borrar Chats Previos</button>
     </div>
   </div>
 
@@ -536,16 +548,6 @@
 
   <div id="chatView" class="view-screen">
     <div class="chat-container">
-      <div class="request-modal" id="requestModal">
-        <h3 id="reqModalTitle">SOLICITUD DE CHAT ENTRANTE</h3>
-        <p id="requestText">Un nodo quiere iniciar comunicación contigo.</p>
-        <div class="modal-actions">
-          <button class="btn-reject" id="btnRejectReq" onclick="respondRequest(false)">RECHAZAR</button>
-          <button class="btn-reject" id="btnBlockReq" onclick="blockRequester()">BLOQUEAR</button>
-          <button class="btn-accept" id="btnAcceptReq" onclick="respondRequest(true)">ACEPTAR</button>
-        </div>
-      </div>
-
       <div class="chat-top-bar">
         <button class="btn-back" onclick="goToHome()">❮</button>
         <div class="chat-title-wrap">
@@ -581,6 +583,17 @@
     </div>
   </div>
 
+  <!-- Modal Solicitud Entrante Global -->
+  <div class="request-modal" id="requestModal">
+    <h3 id="reqModalTitle">SOLICITUD DE MENSAJE ENTRANTE</h3>
+    <p id="requestText">Un nodo quiere iniciar comunicación contigo.</p>
+    <div class="modal-actions">
+      <button class="btn-reject" id="btnRejectReq" onclick="respondRequest(false)">RECHAZAR</button>
+      <button class="btn-reject" id="btnBlockReq" onclick="blockRequester()">BLOQUEAR</button>
+      <button class="btn-accept" id="btnAcceptReq" onclick="respondRequest(true)">ACEPTAR</button>
+    </div>
+  </div>
+
   <!-- Modal Configuración Personalizada -->
   <div class="overlay-modal" id="settingsModal">
     <div class="modal-header">
@@ -599,7 +612,7 @@
         </select>
       </div>
       <div class="setting-row">
-        <span id="lblSuggestCode">Código receptor sugerencias:</span>
+        <span id="lblSuggestCode">Código creador / soporte:</span>
         <input type="text" id="cfgSuggestCode" placeholder="CIPHER-XXXXXX" style="width:130px; text-transform:uppercase;">
       </div>
       <div class="setting-row">
@@ -618,6 +631,10 @@
           <option value="30">30s</option>
           <option value="60">60s</option>
         </select>
+      </div>
+      <div class="setting-row">
+        <span>Nuevo código (borra chats):</span>
+        <button class="btn-small-action" onclick="regenerateUserCodeInSession()">🔄 Generar y Purgar Chats</button>
       </div>
     </div>
     <div class="editor-actions">
@@ -677,20 +694,20 @@
     </div>
   </div>
 
-  <!-- Modal Sugerencias -->
+  <!-- Modal Ayuda y Sugerencias al Creador -->
   <div class="overlay-modal" id="suggestionsModal">
     <div class="modal-header">
-      <span id="suggestModalTitle">💡 SUGERENCIAS Y NOTAS</span>
+      <span id="suggestModalTitle">💡 AYUDA Y SUGERENCIAS</span>
       <button class="btn-back" onclick="closeSuggestionsModal()">✕ Cerrar</button>
     </div>
-    <textarea class="suggest-textarea" id="suggestionInput" placeholder="Escribe aquí tu sugerencia de mejora, función o reporte para CIPHER SHIELD..."></textarea>
+    <textarea class="suggest-textarea" id="suggestionInput" placeholder="Escribe tu pedido de ayuda, reporte o sugerencia cifrada para el creador..."></textarea>
     <div class="setting-row">
-      <span>Ocultar mi código al enviar:</span>
+      <span>Ocultar mi código en el mensaje:</span>
       <input type="checkbox" id="cfgAnonSuggest">
     </div>
     <div class="editor-actions">
-      <button class="btn-sec" id="btnSaveSuggest" onclick="saveSuggestionLocal()">Guardar en Bóveda</button>
-      <button class="btn-pri" id="btnSendSuggestToCode" onclick="sendSuggestionToMyCode()">Enviar a mi Código</button>
+      <button class="btn-sec" id="btnSaveSuggest" onclick="saveSuggestionLocal()">Guardar Local</button>
+      <button class="btn-pri" id="btnSendSuggestToCode" onclick="sendSuggestionToCreator()">Enviar al Creador</button>
     </div>
   </div>
 
@@ -702,18 +719,19 @@
 
   <script>
     const WS_URL = 'wss://app-cipher.onrender.com';
-    const DEFAULT_SUGGESTIONS_CODE = 'CIPHER-ADMIN';
+    // Reemplaza este valor por tu código CIPHER-XXXXXX real como creador para recibir ayuda y sugerencias
+    const CREATOR_SUPPORT_CODE = 'CIPHER-CREATOR';
     const MESH_CHANNEL_NAME = 'CIPHER_MESH_V1';
     const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
     const MAX_PACKET_BYTES = 1_500_000;
-    const MAX_MSGS_PER_WINDOW = 15;
+    const MAX_MSGS_PER_WINDOW = 25;
     const RATE_WINDOW_MS = 3000;
     const DB_NAME = 'CIPHER_VAULT_DB';
     const DB_STORE = 'vault_store';
 
     const I18N = {
       es: {
-        suggest: '💡 Sugerencias',
+        suggest: '💡 Ayuda/Sug.',
         settings: '⚙️ Ajustes',
         authTitle: 'ACCESO BLINDADO',
         authDesc: 'Introduce tu Clave Maestra para desbloquear tu identidad criptográfica.',
@@ -726,7 +744,7 @@
         killSwitch: 'PURGA TOTAL (KILL-SWITCH)',
         settingsTitle: '⚙️ CONFIGURACIÓN',
         lblLang: 'Idioma / Language:',
-        lblSuggestCode: 'Código receptor sugerencias:',
+        lblSuggestCode: 'Código creador / soporte:',
         lblSound: 'Sonido de notificación:',
         lblPrivacyBlur: 'Ocultar pantalla al salir:',
         lblDefaultTimer: 'Autodestrucción por defecto:',
@@ -734,7 +752,7 @@
         savedToast: 'Ajustes guardados'
       },
       en: {
-        suggest: '💡 Suggestions',
+        suggest: '💡 Help/Sug.',
         settings: '⚙️ Settings',
         authTitle: 'ARMORED ACCESS',
         authDesc: 'Enter your Master Key to unlock your cryptographic identity.',
@@ -747,7 +765,7 @@
         killSwitch: 'TOTAL WIPE (KILL-SWITCH)',
         settingsTitle: '⚙️ SETTINGS',
         lblLang: 'Language / Idioma:',
-        lblSuggestCode: 'Suggestions target code:',
+        lblSuggestCode: 'Creator / support code:',
         lblSound: 'Notification sound:',
         lblPrivacyBlur: 'Hide screen on background:',
         lblDefaultTimer: 'Default self-destruct:',
@@ -755,7 +773,7 @@
         savedToast: 'Settings saved'
       },
       fr: {
-        suggest: '💡 Suggestions',
+        suggest: '💡 Aide/Sug.',
         settings: '⚙️ Réglages',
         authTitle: 'ACCÈS BLINDÉ',
         authDesc: 'Entrez votre Clé Maîtresse pour déverrouiller votre identité.',
@@ -768,7 +786,7 @@
         killSwitch: 'PURGE TOTALE (KILL-SWITCH)',
         settingsTitle: '⚙️ RÉGLAGES',
         lblLang: 'Langue :',
-        lblSuggestCode: 'Code cible suggestions :',
+        lblSuggestCode: 'Code créateur / support :',
         lblSound: 'Son de notification :',
         lblPrivacyBlur: 'Masquer en arrière-plan :',
         lblDefaultTimer: 'Auto-destruction défaut :',
@@ -776,7 +794,7 @@
         savedToast: 'Réglages enregistrés'
       },
       pt: {
-        suggest: '💡 Sugestões',
+        suggest: '💡 Ajuda/Sug.',
         settings: '⚙️ Ajustes',
         authTitle: 'ACESSO BLINDADO',
         authDesc: 'Digite sua Chave Mestra para desbloquear sua identidade.',
@@ -789,7 +807,7 @@
         killSwitch: 'PURGA TOTAL (KILL-SWITCH)',
         settingsTitle: '⚙️ AJUSTES',
         lblLang: 'Idioma :',
-        lblSuggestCode: 'Código alvo sugestões :',
+        lblSuggestCode: 'Código criador / suporte :',
         lblSound: 'Som de notificação :',
         lblPrivacyBlur: 'Ocultar ao sair :',
         lblDefaultTimer: 'Autodestruição padrão :',
@@ -797,7 +815,7 @@
         savedToast: 'Ajustes salvos'
       },
       de: {
-        suggest: '💡 Vorschläge',
+        suggest: '💡 Hilfe/Vor.',
         settings: '⚙️ Einstellungen',
         authTitle: 'GESICHERTER ZUGRIFF',
         authDesc: 'Geben Sie Ihren Hauptschlüssel ein, um Ihre Identität zu entsperren.',
@@ -810,7 +828,7 @@
         killSwitch: 'VOLLSTÄNDIGE LÖSCHUNG',
         settingsTitle: '⚙️ EINSTELLUNGEN',
         lblLang: 'Sprache:',
-        lblSuggestCode: 'Ziel-Code für Vorschläge:',
+        lblSuggestCode: 'Creator- / Support-Code:',
         lblSound: 'Benachrichtigungston:',
         lblPrivacyBlur: 'Im Hintergrund ausblenden:',
         lblDefaultTimer: 'Standard-Selbstzerstörung:',
@@ -821,7 +839,7 @@
 
     let userSettings = {
       lang: 'es',
-      suggestionsCode: DEFAULT_SUGGESTIONS_CODE,
+      suggestionsCode: CREATOR_SUPPORT_CODE,
       sound: true,
       privacyBlur: true,
       defaultTimer: 0
@@ -836,6 +854,7 @@
     let approvedChats = new Set();
     let blockedChats = new Set();
     let pendingRequester = null;
+    let pendingIncomingMsg = null;
     let audioCtx = null;
     let replyingTo = null;
     let mediaRecorder = null;
@@ -847,13 +866,12 @@
     let rtcPeers = new Map();
     let senderRateMap = new Map();
 
-    // Claves criptográficas en memoria
-    let signKeyPair = null;     // ECDSA P-256 para firmar paquetes
-    let ecdhKeyPair = null;     // ECDH P-256 para intercambio de secretos de sesión
+    let signKeyPair = null;
+    let ecdhKeyPair = null;
     let mySignPubJwk = null;
     let myEcdhPubJwk = null;
-    let peerPubRegistry = {};    // { [code]: { signPub, ecdhPub } }
-    let sessionAesKeys = new Map(); // partnerCode -> CryptoKey (AES-GCM 256)
+    let peerPubRegistry = {};
+    let sessionAesKeys = new Map();
 
     let draftMedia = { kind: null, rawDataUrl: null, rotation: 0 };
     let currentViewerZoom = 1;
@@ -896,6 +914,16 @@
       });
     }
 
+    async function idbDelete(key) {
+      const db = await openVaultDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
     async function idbClear() {
       const db = await openVaultDB();
       return new Promise((resolve, reject) => {
@@ -904,6 +932,80 @@
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
+    }
+
+    function purgeAllChatState() {
+      chatsData = {};
+      approvedChats.clear();
+      blockedChats.clear();
+      peerPubRegistry = {};
+      sessionAesKeys.clear();
+      pendingRequester = null;
+      pendingIncomingMsg = null;
+      currentTarget = '';
+      cancelReply();
+      document.getElementById('chatMessages').innerHTML = '<div class="message system">Canal seguro cifrado (ECDH + AES-GCM + Firma ECDSA).</div>';
+      document.getElementById('chatList').innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos. Pulsa "+ Nuevo Chat".</div>';
+    }
+
+    async function resetIdentityFromAuth() {
+      if (!confirm('¿Restablecer identidad y borrar todos los chats anteriores? Esta acción no se puede deshacer.')) return;
+      const prevCode = localStorage.getItem('cipher_my_code') || myCode;
+      if (prevCode) {
+        try { await idbDelete('vault_' + prevCode); } catch (_) {}
+      }
+      localStorage.removeItem('cipher_auth_salt');
+      localStorage.removeItem('cipher_auth_verifier');
+      localStorage.removeItem('cipher_my_code');
+      masterKey = '';
+      myCode = '';
+      signKeyPair = null;
+      ecdhKeyPair = null;
+      mySignPubJwk = null;
+      myEcdhPubJwk = null;
+      purgeAllChatState();
+      document.getElementById('masterKeyInput').value = '';
+      document.getElementById('masterKeyInput').focus();
+      showToast('Chats previos borrados. Ingresa tu nueva Clave Maestra.');
+    }
+
+    async function regenerateUserCodeInSession() {
+      if (!masterKey) {
+        showToast('Desbloquea tu sesión primero');
+        return;
+      }
+      if (!confirm('¿Generar un código CIPHER nuevo y eliminar todos tus chats actuales?')) return;
+
+      const prevCode = myCode;
+      if (prevCode) {
+        try { await idbDelete('vault_' + prevCode); } catch (_) {}
+      }
+
+      purgeAllChatState();
+      signKeyPair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+      ecdhKeyPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits']);
+
+      const rawPub = await crypto.subtle.exportKey('raw', signKeyPair.publicKey);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', rawPub);
+      const hex = Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
+
+      myCode = 'CIPHER-' + hex.substring(0, 6);
+      localStorage.setItem('cipher_my_code', myCode);
+      mySignPubJwk = await crypto.subtle.exportKey('jwk', signKeyPair.publicKey);
+      myEcdhPubJwk = await crypto.subtle.exportKey('jwk', ecdhKeyPair.publicKey);
+
+      document.getElementById('displayMyCode').textContent = myCode;
+      await saveLocalChats();
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'register', code: myCode }));
+      }
+      closeSettingsModal();
+      document.getElementById('chatView').classList.remove('active');
+      document.getElementById('homeView').classList.add('active');
+      showToast(`Nuevo código creado y chats purgados: ${myCode}`);
     }
 
     function applyLanguage(langCode) {
@@ -932,7 +1034,7 @@
 
     function openSettingsModal() {
       document.getElementById('cfgLang').value = userSettings.lang || 'es';
-      document.getElementById('cfgSuggestCode').value = userSettings.suggestionsCode || DEFAULT_SUGGESTIONS_CODE;
+      document.getElementById('cfgSuggestCode').value = userSettings.suggestionsCode || CREATOR_SUPPORT_CODE;
       document.getElementById('cfgSound').checked = userSettings.sound !== false;
       document.getElementById('cfgPrivacyBlur').checked = userSettings.privacyBlur !== false;
       document.getElementById('cfgDefaultTimer').value = String(userSettings.defaultTimer || 0);
@@ -946,7 +1048,7 @@
     async function saveSettings() {
       userSettings.lang = document.getElementById('cfgLang').value;
       const codeInput = document.getElementById('cfgSuggestCode').value.trim().toUpperCase();
-      userSettings.suggestionsCode = codeInput || DEFAULT_SUGGESTIONS_CODE;
+      userSettings.suggestionsCode = codeInput || CREATOR_SUPPORT_CODE;
       userSettings.sound = document.getElementById('cfgSound').checked;
       userSettings.privacyBlur = document.getElementById('cfgPrivacyBlur').checked;
       userSettings.defaultTimer = parseInt(document.getElementById('cfgDefaultTimer').value, 10) || 0;
@@ -958,10 +1060,23 @@
       showToast(dict.savedToast);
     }
 
+    function unlockAudioOnGesture() {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+      } catch (_) {}
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       applyLanguage('es');
       myCode = localStorage.getItem('cipher_my_code') || '';
       initLocalMeshChannel();
+      document.addEventListener('pointerdown', unlockAudioOnGesture, { once: false });
+      document.addEventListener('keydown', unlockAudioOnGesture, { once: false });
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
       }
@@ -1044,6 +1159,14 @@
       }
     }
 
+    async function registerPeerBundle(peerCode, pubBundle) {
+      if (!peerCode || !pubBundle || !pubBundle.signPub || !pubBundle.ecdhPub) return false;
+      peerPubRegistry[peerCode] = { signPub: pubBundle.signPub, ecdhPub: pubBundle.ecdhPub };
+      sessionAesKeys.delete(peerCode);
+      await getSessionAesKey(peerCode);
+      return true;
+    }
+
     async function getSessionAesKey(partnerCode) {
       if (sessionAesKeys.has(partnerCode)) {
         return sessionAesKeys.get(partnerCode);
@@ -1108,6 +1231,7 @@
     });
 
     function triggerAuth() {
+      unlockAudioOnGesture();
       setTimeout(handleMasterKey, 10);
     }
 
@@ -1158,7 +1282,7 @@
           showToast('Sesión desbloqueada');
         }
       } catch (_) {
-        showToast('❌ Clave Maestra Incorrecta o Error Crypto');
+        showToast('❌ Clave Maestra Incorrecta. Usa "Restablecer y Borrar Chats Previos" si deseas reiniciar.');
         document.getElementById('masterKeyInput').value = '';
       }
     }
@@ -1169,6 +1293,7 @@
       applyLanguage(userSettings.lang || 'es');
       document.getElementById('authView').classList.remove('active');
       document.getElementById('homeView').classList.add('active');
+      renderChatList();
       initWebSocket();
     }
 
@@ -1388,6 +1513,47 @@
       return arr.length > MAX_MSGS_PER_WINDOW;
     }
 
+    async function deliverDecryptedMessage(senderCode, decrypted) {
+      ensureChatExists(senderCode);
+      chatsData[senderCode].approved = true;
+      approvedChats.add(senderCode);
+
+      const isInActiveChat = document.getElementById('chatView').classList.contains('active') && currentTarget === senderCode;
+      const alreadyExists = chatsData[senderCode].messages.some(m => m.msgId === decrypted.id);
+
+      if (!alreadyExists) {
+        chatsData[senderCode].messages.push({
+          data: decrypted,
+          type: 'received',
+          timer: decrypted.timer || 0,
+          msgId: decrypted.id,
+          sender: senderCode,
+          status: isInActiveChat ? '●● LEÍDO' : '✓✓ ENTREGADO',
+          time: decrypted.time,
+          reactions: []
+        });
+      }
+
+      await playNotificationSound();
+      triggerNotification(senderCode);
+
+      if (!isInActiveChat) {
+        if (!alreadyExists) {
+          chatsData[senderCode].unread = (chatsData[senderCode].unread || 0) + 1;
+        }
+        sendAck(decrypted.id, '✓✓ ENTREGADO', senderCode);
+      } else {
+        chatsData[senderCode].unread = 0;
+        if (!alreadyExists) {
+          appendMessageToDOM(decrypted, 'received', decrypted.timer || 0, decrypted.id, senderCode, '●● LEÍDO', decrypted.time, []);
+        }
+        sendAck(decrypted.id, '●● LEÍDO', senderCode);
+      }
+
+      await saveLocalChats();
+      renderChatList();
+    }
+
     async function handleIncomingPacket(rawPacket, sourceVia) {
       try {
         if (!rawPacket || typeof rawPacket !== 'object') return;
@@ -1403,12 +1569,12 @@
         }
 
         const senderUpper = String(rawPacket.from || '').toUpperCase();
+        const targetUpper = String(rawPacket.to || '').toUpperCase();
         if (senderUpper && blockedChats.has(senderUpper)) return;
 
         if (isRateLimited(senderUpper || sourceVia)) return;
 
-        // Retransmisión en malla con TTL acotado
-        if (rawPacket.to && rawPacket.to !== myCode && typeof rawPacket.ttl === 'number' && rawPacket.ttl > 0 && sourceVia !== 'WS') {
+        if (targetUpper && myCode && targetUpper !== myCode && typeof rawPacket.ttl === 'number' && rawPacket.ttl > 0 && sourceVia !== 'WS') {
           const relayPkt = { ...rawPacket, ttl: Math.min(rawPacket.ttl - 1, 2) };
           if (meshChannel) meshChannel.postMessage(relayPkt);
           if (socket && socket.readyState === WebSocket.OPEN) {
@@ -1417,47 +1583,44 @@
           return;
         }
 
-        if (!myCode || !masterKey || rawPacket.to !== myCode) return;
+        if (!myCode || !masterKey || targetUpper !== myCode) return;
 
-        // Intercambio de claves públicas ECDH + ECDSA
-        if (rawPacket.type === 'key_exchange' && rawPacket.from && rawPacket.pubBundle) {
-          const { signPub, ecdhPub } = rawPacket.pubBundle;
-          if (!signPub || !ecdhPub) return;
-          const validSelfSig = await verifyPacketSig(rawPacket, signPub);
-          if (!validSelfSig) return;
+        if (rawPacket.pubBundle && rawPacket.pubBundle.signPub && rawPacket.pubBundle.ecdhPub) {
+          const validBundleSig = await verifyPacketSig(rawPacket, rawPacket.pubBundle.signPub);
+          if (validBundleSig) {
+            await registerPeerBundle(senderUpper, rawPacket.pubBundle);
+            await saveLocalChats();
+          }
+        }
 
-          peerPubRegistry[rawPacket.from] = { signPub, ecdhPub };
-          sessionAesKeys.delete(rawPacket.from);
-          await getSessionAesKey(rawPacket.from);
-          await saveLocalChats();
+        if (rawPacket.type === 'key_exchange') {
           return;
         }
 
-        // Verificar firma ECDSA para paquetes de remitentes conocidos
-        const knownPeer = peerPubRegistry[rawPacket.from];
-        if (rawPacket.type !== 'chat_request' && knownPeer && knownPeer.signPub) {
+        const knownPeer = peerPubRegistry[senderUpper];
+        if (knownPeer && knownPeer.signPub && rawPacket.sig) {
           const okSig = await verifyPacketSig(rawPacket, knownPeer.signPub);
           if (!okSig) {
-            console.warn('Firma inválida descartada de', rawPacket.from);
+            console.warn('Firma inválida descartada de', senderUpper);
             return;
           }
         }
 
         if (rawPacket.type === 'rtc_offer' && rawPacket.payload) {
-          const entry = await ensurePeerConnection(rawPacket.from, false);
+          const entry = await ensurePeerConnection(senderUpper, false);
           if (entry) {
             const sdp = JSON.parse(rawPacket.payload);
             await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp));
             const answer = await entry.pc.createAnswer();
             await entry.pc.setLocalDescription(answer);
-            const pkt = await signPacketObj({ type: 'rtc_answer', from: myCode, to: rawPacket.from, payload: JSON.stringify(answer), ttl: 2 });
+            const pkt = await signPacketObj({ type: 'rtc_answer', from: myCode, to: senderUpper, payload: JSON.stringify(answer), ttl: 2 });
             dispatchPacket(pkt);
           }
           return;
         }
 
         if (rawPacket.type === 'rtc_answer' && rawPacket.payload) {
-          const entry = rtcPeers.get(rawPacket.from);
+          const entry = rtcPeers.get(senderUpper);
           if (entry && entry.pc) {
             await entry.pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(rawPacket.payload)));
           }
@@ -1465,7 +1628,7 @@
         }
 
         if (rawPacket.type === 'rtc_ice' && rawPacket.payload) {
-          const entry = rtcPeers.get(rawPacket.from);
+          const entry = rtcPeers.get(senderUpper);
           if (entry && entry.pc) {
             await entry.pc.addIceCandidate(new RTCIceCandidate(JSON.parse(rawPacket.payload))).catch(() => {});
           }
@@ -1473,7 +1636,7 @@
         }
 
         if (rawPacket.type === 'typing') {
-          if (currentTarget === rawPacket.from) {
+          if (currentTarget === senderUpper) {
             const ind = document.getElementById('typingIndicator');
             ind.textContent = 'escribiendo...';
             clearTimeout(typingTimeout);
@@ -1483,42 +1646,38 @@
         }
 
         if (rawPacket.type === 'reaction') {
-          const rData = await decryptWithSessionKey(rawPacket.payload, rawPacket.from);
-          applyReactionToMessage(rawPacket.from, rData.msgId, rData.emoji, rawPacket.from);
+          const rData = await decryptWithSessionKey(rawPacket.payload, senderUpper);
+          applyReactionToMessage(senderUpper, rData.msgId, rData.emoji, senderUpper);
           await saveLocalChats();
           return;
         }
 
         if (rawPacket.type === 'chat_request') {
-          if (rawPacket.pubBundle && rawPacket.pubBundle.signPub && rawPacket.pubBundle.ecdhPub) {
-            const validReqSig = await verifyPacketSig(rawPacket, rawPacket.pubBundle.signPub);
-            if (!validReqSig) return;
-            peerPubRegistry[rawPacket.from] = rawPacket.pubBundle;
-            sessionAesKeys.delete(rawPacket.from);
-            await getSessionAesKey(rawPacket.from);
-            await saveLocalChats();
-          }
-          pendingRequester = rawPacket.from;
+          pendingRequester = senderUpper;
+          pendingIncomingMsg = null;
           ensureChatExists(pendingRequester);
-          document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro contigo.`;
+          await saveLocalChats();
+          renderChatList();
+          await playNotificationSound();
+          document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere enviarte mensajes. ¿Aceptar canal?`;
           document.getElementById('requestModal').style.display = 'flex';
-          playNotificationSound();
           return;
         }
 
         if (rawPacket.type === 'chat_response') {
           if (rawPacket.accepted) {
-            approvedChats.add(rawPacket.from);
-            ensureChatExists(rawPacket.from);
-            chatsData[rawPacket.from].approved = true;
+            approvedChats.add(senderUpper);
+            ensureChatExists(senderUpper);
+            chatsData[senderUpper].approved = true;
+            await sendKeyExchange(senderUpper);
             await saveLocalChats();
             renderChatList();
-            showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
-            if (currentTarget === rawPacket.from) {
-              updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
+            showToast(`¡Solicitud aceptada por [${senderUpper}]!`);
+            if (currentTarget === senderUpper) {
+              updateMessageStatus('pending_req_' + senderUpper, '✓ CANAL ABIERTO');
             }
           } else {
-            showToast(`[${rawPacket.from}] rechazó el chat`);
+            showToast(`[${senderUpper}] rechazó la solicitud`);
           }
           return;
         }
@@ -1529,45 +1688,22 @@
         }
 
         if (rawPacket.type === 'msg') {
-          if (!approvedChats.has(rawPacket.from)) {
-            pendingRequester = rawPacket.from;
-            document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
+          const decrypted = await decryptWithSessionKey(rawPacket.payload, senderUpper);
+          ensureChatExists(senderUpper);
+
+          if (!approvedChats.has(senderUpper)) {
+            pendingRequester = senderUpper;
+            pendingIncomingMsg = decrypted;
+            chatsData[senderUpper].unread = (chatsData[senderUpper].unread || 0) + 1;
+            await saveLocalChats();
+            renderChatList();
+            await playNotificationSound();
+            document.getElementById('requestText').textContent = `Nuevo mensaje de [${senderUpper}]: "${typeof decrypted.content === 'string' ? decrypted.content.substring(0, 60) : '[Archivo]'}"`;
             document.getElementById('requestModal').style.display = 'flex';
-            playNotificationSound();
             return;
           }
 
-          const decrypted = await decryptWithSessionKey(rawPacket.payload, rawPacket.from);
-          ensureChatExists(rawPacket.from);
-          chatsData[rawPacket.from].approved = true;
-
-          const isInActiveChat = document.getElementById('chatView').classList.contains('active') && currentTarget === rawPacket.from;
-
-          chatsData[rawPacket.from].messages.push({
-            data: decrypted,
-            type: 'received',
-            timer: decrypted.timer,
-            msgId: decrypted.id,
-            sender: rawPacket.from,
-            status: isInActiveChat ? '●● LEÍDO' : '✓✓ ENTREGADO',
-            time: decrypted.time,
-            reactions: []
-          });
-
-          playNotificationSound();
-          triggerNotification(rawPacket.from);
-
-          if (!isInActiveChat) {
-            chatsData[rawPacket.from].unread = (chatsData[rawPacket.from].unread || 0) + 1;
-            sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
-          } else {
-            chatsData[rawPacket.from].unread = 0;
-            appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from, '●● LEÍDO', decrypted.time, []);
-            sendAck(decrypted.id, '●● LEÍDO', rawPacket.from);
-          }
-
-          await saveLocalChats();
-          renderChatList();
+          await deliverDecryptedMessage(senderUpper, decrypted);
         }
       } catch (e) {
         console.error('Error procesando paquete entrante:', e);
@@ -1584,35 +1720,37 @@
       }
     }
 
-    function playNotificationSound() {
+    async function playNotificationSound() {
       if (!userSettings.sound) return;
       try {
         if (!audioCtx) {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
         if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
+          await audioCtx.resume();
         }
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.15);
-        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.16);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.16);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.15);
+        osc.stop(audioCtx.currentTime + 0.16);
       } catch (_) {}
     }
 
     function triggerNotification(senderCode) {
       if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('CIPHER // Nuevo Mensaje', {
-          body: `Mensaje cifrado recibido de [${senderCode}]`,
-          icon: './manifest.json'
-        });
+        try {
+          new Notification('CIPHER // Nuevo Mensaje', {
+            body: `Mensaje cifrado recibido de [${senderCode}]`,
+            icon: './manifest.json'
+          });
+        } catch (_) {}
       }
       showToast(`Nuevo mensaje de [${senderCode}]`);
     }
@@ -1687,12 +1825,13 @@
       let html = '';
       codes.forEach(code => {
         const chat = chatsData[code];
-        const msgs = chat.messages;
-        const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].data.content : 'Canal establecido';
+        const msgs = chat.messages || [];
+        const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].data.content : 'Solicitud pendiente';
         const preview = typeof lastMsg === 'string'
           ? (lastMsg.startsWith('data:audio') ? '🎙️ Nota de voz' : (lastMsg.startsWith('data:image') ? '🖼️ Imagen' : (lastMsg.startsWith('data:video') ? '🎥 Vídeo' : lastMsg.substring(0, 24))))
           : '[Archivo]';
-        const unreadBadge = chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : '';
+        const unreadCount = chat.unread || 0;
+        const unreadBadge = unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : '';
 
         html += `
           <div class="chat-item">
@@ -1735,6 +1874,7 @@
         showToast(`[${pendingRequester}] bloqueado`);
       }
       pendingRequester = null;
+      pendingIncomingMsg = null;
     }
 
     function deleteChat(code) {
@@ -1751,28 +1891,43 @@
     async function respondRequest(accepted) {
       document.getElementById('requestModal').style.display = 'none';
       const targetReq = pendingRequester;
+      const queuedMsg = pendingIncomingMsg;
       pendingRequester = null;
+      pendingIncomingMsg = null;
 
       if (accepted && targetReq) {
         approvedChats.add(targetReq);
         ensureChatExists(targetReq);
         chatsData[targetReq].approved = true;
         await sendKeyExchange(targetReq);
-        await saveLocalChats();
-        ensurePeerConnection(targetReq, false);
-        showToast(`Canal abierto con [${targetReq}]`);
-        renderChatList();
-      }
 
-      if (targetReq) {
-        const pkt = await signPacketObj({
+        const respPkt = await signPacketObj({
           type: 'chat_response',
           from: myCode,
           to: targetReq,
-          accepted: accepted,
+          pubBundle: (mySignPubJwk && myEcdhPubJwk) ? { signPub: mySignPubJwk, ecdhPub: myEcdhPubJwk } : null,
+          accepted: true,
           ttl: 3
         });
-        dispatchPacket(pkt);
+        await dispatchPacket(respPkt);
+
+        if (queuedMsg) {
+          await deliverDecryptedMessage(targetReq, queuedMsg);
+        } else {
+          await saveLocalChats();
+          renderChatList();
+        }
+        ensurePeerConnection(targetReq, false);
+        showToast(`Canal abierto con [${targetReq}]`);
+      } else if (targetReq) {
+        const respPkt = await signPacketObj({
+          type: 'chat_response',
+          from: myCode,
+          to: targetReq,
+          accepted: false,
+          ttl: 3
+        });
+        await dispatchPacket(respPkt);
       }
     }
 
@@ -1850,6 +2005,7 @@
     }
 
     async function toggleVoiceRecording() {
+      unlockAudioOnGesture();
       const btn = document.getElementById('voiceBtn');
       if (!isRecording) {
         try {
@@ -1881,10 +2037,17 @@
     }
 
     async function sendMessageToTarget(targetCode, type, contentOverride = null, anonymousSender = false) {
+      unlockAudioOnGesture();
       if (!masterKey) {
         showToast('Clave maestra requerida');
         return false;
       }
+      const cleanTarget = String(targetCode || '').trim().toUpperCase();
+      if (!cleanTarget || cleanTarget === myCode) {
+        showToast('Código destino inválido');
+        return false;
+      }
+
       const text = contentOverride !== null ? contentOverride : document.getElementById('messageInput').value.trim();
       const timer = parseInt(document.getElementById('destructTimer').value) || 0;
       const now = new Date();
@@ -1893,9 +2056,9 @@
       if (!text && type === 'text') return false;
 
       const senderLabel = anonymousSender ? 'ANON' : myCode;
-      ensureChatExists(targetCode);
+      ensureChatExists(cleanTarget);
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
-      const replySnapshot = (currentTarget === targetCode && replyingTo) ? { ...replyingTo } : null;
+      const replySnapshot = (currentTarget === cleanTarget && replyingTo) ? { ...replyingTo } : null;
       const dataObj = {
         id: msgId,
         from: senderLabel,
@@ -1906,48 +2069,65 @@
         replyTo: replySnapshot
       };
 
-      if (!approvedChats.has(targetCode)) {
-        const reqId = 'pending_req_' + targetCode;
-        chatsData[targetCode].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE', time: timeString, reactions: [] });
+      const bundle = (mySignPubJwk && myEcdhPubJwk) ? { signPub: mySignPubJwk, ecdhPub: myEcdhPubJwk } : null;
+
+      if (!peerPubRegistry[cleanTarget]) {
+        const reqId = 'pending_req_' + cleanTarget;
+        chatsData[cleanTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD ENVIADA', time: timeString, reactions: [] });
         await saveLocalChats();
-        if (currentTarget === targetCode) {
-          appendMessageToDOM(dataObj, 'sent', timer, reqId, senderLabel, '⏳ SOLICITUD PENDIENTE', timeString, []);
+        if (currentTarget === cleanTarget) {
+          appendMessageToDOM(dataObj, 'sent', timer, reqId, senderLabel, '⏳ SOLICITUD ENVIADA', timeString, []);
         }
         const reqPkt = await signPacketObj({
           type: 'chat_request',
           from: myCode,
-          to: targetCode,
-          pubBundle: (mySignPubJwk && myEcdhPubJwk) ? { signPub: mySignPubJwk, ecdhPub: myEcdhPubJwk } : null,
+          to: cleanTarget,
+          pubBundle: bundle,
           ttl: 3
         });
-        dispatchPacket(reqPkt);
+        await dispatchPacket(reqPkt);
         renderChatList();
         return true;
       }
 
-      chatsData[targetCode].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA', time: timeString, reactions: [] });
+      chatsData[cleanTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA', time: timeString, reactions: [] });
       await saveLocalChats();
-      if (currentTarget === targetCode) {
+      if (currentTarget === cleanTarget) {
         appendMessageToDOM(dataObj, 'sent', timer, msgId, senderLabel, '⏳ EN ESPERA', timeString, []);
       }
 
       try {
-        await sendKeyExchange(targetCode);
-        const encryptedBase64 = await encryptWithSessionKey(dataObj, targetCode);
-        const pkt = await signPacketObj({ type: 'msg', from: myCode, to: targetCode, payload: encryptedBase64, ttl: 3 });
-        dispatchPacket(pkt);
-        if (currentTarget === targetCode) {
+        await sendKeyExchange(cleanTarget);
+        const encryptedBase64 = await encryptWithSessionKey(dataObj, cleanTarget);
+        const pkt = await signPacketObj({
+          type: 'msg',
+          from: myCode,
+          to: cleanTarget,
+          pubBundle: bundle,
+          payload: encryptedBase64,
+          ttl: 3
+        });
+        await dispatchPacket(pkt);
+        if (currentTarget === cleanTarget) {
           updateMessageStatus(msgId, '✓ CIFRADO');
         }
         renderChatList();
         return true;
       } catch (e) {
         console.error(e);
-        showToast('Intercambiando claves ECDH, reintenta');
-        if (currentTarget === targetCode) {
-          updateMessageStatus(msgId, '⏳ CLAVES');
+        const reqPkt = await signPacketObj({
+          type: 'chat_request',
+          from: myCode,
+          to: cleanTarget,
+          pubBundle: bundle,
+          ttl: 3
+        });
+        await dispatchPacket(reqPkt);
+        showToast('Solicitud de cifrado enviada');
+        if (currentTarget === cleanTarget) {
+          updateMessageStatus(msgId, '⏳ SOLICITUD');
         }
-        return false;
+        return true;
       }
     }
 
@@ -2128,27 +2308,27 @@
       document.getElementById('suggestionsModal').classList.remove('active');
     }
 
-    async function sendSuggestionToMyCode() {
+    async function sendSuggestionToCreator() {
       const txt = document.getElementById('suggestionInput').value.trim();
       if (!txt) {
-        showToast('Escribe una sugerencia primero');
+        showToast('Escribe tu mensaje de ayuda o sugerencia');
         return;
       }
       if (!masterKey) {
         showToast('Desbloquea tu sesión primero');
         return;
       }
-      const targetCode = (userSettings.suggestionsCode || DEFAULT_SUGGESTIONS_CODE).trim().toUpperCase();
+      const targetCode = (userSettings.suggestionsCode || CREATOR_SUPPORT_CODE).trim().toUpperCase();
       if (!targetCode || targetCode === myCode) {
-        showToast('Configura tu código destino en Ajustes');
+        showToast('Configura el código del creador en Ajustes');
         return;
       }
       const isAnon = document.getElementById('cfgAnonSuggest').checked;
-      const ok = await sendMessageToTarget(targetCode, 'text', `💡 Sugerencia: ${txt}`, isAnon);
+      const ok = await sendMessageToTarget(targetCode, 'text', `💡 Ayuda/Sugerencia: ${txt}`, isAnon);
       if (ok) {
         document.getElementById('suggestionInput').value = '';
         closeSuggestionsModal();
-        showToast(`Sugerencia enviada a [${targetCode}]`);
+        showToast(`Enviado cifrado a [${targetCode}]`);
       }
     }
 
@@ -2166,7 +2346,7 @@
       ensureChatExists(targetKey);
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       chatsData[targetKey].messages.push({
-        data: { id: 'sug_' + Date.now(), from: myCode, type: 'text', content: `💡 Sugerencia: ${txt}`, timer: 0, time: nowStr },
+        data: { id: 'sug_' + Date.now(), from: myCode, type: 'text', content: `💡 Ayuda/Sugerencia: ${txt}`, timer: 0, time: nowStr },
         type: 'sent',
         timer: 0,
         msgId: 'sug_' + Date.now(),
@@ -2178,7 +2358,7 @@
       renderChatList();
       document.getElementById('suggestionInput').value = '';
       closeSuggestionsModal();
-      showToast('Sugerencia guardada en bóveda');
+      showToast('Guardado en bóveda local');
     }
 
     function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO', msgTime = '', reactions = []) {
