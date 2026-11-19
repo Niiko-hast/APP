@@ -11,6 +11,7 @@
     :root {
       --bg-main: #070a10;
       --bg-panel: #0d131f;
+      --bg-elevated: #131c2e;
       --cyan: #00f3ff;
       --emerald: #10b981;
       --danger: #ef4444;
@@ -48,6 +49,7 @@
       padding-bottom: 8px;
       border-bottom: 1px solid var(--border);
       margin-bottom: 6px;
+      gap: 6px;
     }
 
     .brand {
@@ -56,17 +58,18 @@
       gap: 8px;
     }
 
-    .brand svg { width: 24px; height: 24px; }
-    .brand h1 { font-size: 1.1rem; letter-spacing: 2px; color: var(--cyan); }
+    .brand svg { width: 22px; height: 22px; flex-shrink: 0; }
+    .brand h1 { font-size: 1rem; letter-spacing: 1.5px; color: var(--cyan); }
 
     .status-badge {
-      font-size: 0.6rem;
+      font-size: 0.58rem;
       padding: 3px 6px;
       border: 1px solid var(--danger);
       color: var(--danger);
       border-radius: 4px;
       background: rgba(239, 68, 68, 0.1);
       font-weight: bold;
+      white-space: nowrap;
     }
     .status-badge.connecting { border-color: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1); }
     .status-badge.connected { border-color: var(--emerald); color: var(--emerald); background: rgba(16, 185, 129, 0.1); }
@@ -106,8 +109,8 @@
       outline: none;
       text-align: center;
       margin-bottom: 10px;
-      text-transform: uppercase;
     }
+    .auth-container input#customCodeInput { text-transform: uppercase; }
     .auth-container input:focus { border-color: var(--cyan); }
     .btn-auth {
       background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
@@ -126,19 +129,36 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
+      gap: 6px;
     }
-    .home-header span { font-size: 0.75rem; color: var(--cyan); }
+    .home-header span { font-size: 0.72rem; color: var(--cyan); }
     .btn-new-chat {
       background: var(--bg-panel);
       border: 1px solid var(--cyan);
       color: var(--cyan);
-      padding: 4px 8px;
+      padding: 5px 8px;
       border-radius: 4px;
       font-size: 0.7rem;
       cursor: pointer;
       font-weight: bold;
+      white-space: nowrap;
     }
+
+    .search-box {
+      width: 100%;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      outline: none;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .search-box:focus { border-color: var(--cyan); }
+
     .chat-list {
       flex: 1;
       background: var(--bg-panel);
@@ -158,10 +178,11 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
     }
-    .chat-item-info { flex: 1; cursor: pointer; }
+    .chat-item-info { flex: 1; cursor: pointer; min-width: 0; }
     .chat-item-info h4 { font-size: 0.85rem; color: var(--cyan); display: flex; justify-content: space-between; align-items: center; }
-    .chat-item-info p { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; }
+    .chat-item-info p { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     
     .unread-badge {
       background: var(--cyan);
@@ -172,6 +193,16 @@
       font-weight: bold;
     }
 
+    .chat-item-actions { display: flex; gap: 4px; }
+    .btn-small-action {
+      background: rgba(100, 116, 139, 0.12);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 0.6rem;
+      cursor: pointer;
+    }
     .btn-delete-chat {
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid var(--danger);
@@ -202,8 +233,12 @@
       padding: 6px 10px;
       background: var(--bg-main);
       border-bottom: 1px solid var(--border);
-      font-size: 0.75rem;
+      font-size: 0.72rem;
+      gap: 6px;
     }
+    .chat-title-wrap { display: flex; flex-direction: column; align-items: center; }
+    .typing-indicator { font-size: 0.58rem; color: var(--emerald); height: 12px; }
+
     .btn-back {
       background: transparent;
       border: 1px solid var(--border);
@@ -216,7 +251,7 @@
     .request-modal {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(7, 10, 16, 0.95);
+      background: rgba(7, 10, 16, 0.96);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -228,9 +263,9 @@
     }
     .request-modal h3 { color: var(--cyan); font-size: 1rem; margin-bottom: 10px; }
     .request-modal p { font-size: 0.75rem; color: var(--text-main); margin-bottom: 15px; }
-    .modal-actions { display: flex; gap: 10px; width: 100%; max-width: 250px; }
-    .btn-accept { flex: 1; background: var(--emerald); color: var(--bg-main); border: none; padding: 8px; font-weight: bold; border-radius: 4px; cursor: pointer; }
-    .btn-reject { flex: 1; background: var(--danger); color: var(--text-main); border: none; padding: 8px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    .modal-actions { display: flex; gap: 8px; width: 100%; max-width: 280px; }
+    .btn-accept { flex: 1; background: var(--emerald); color: var(--bg-main); border: none; padding: 8px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.72rem; }
+    .btn-reject { flex: 1; background: var(--danger); color: var(--text-main); border: none; padding: 8px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.72rem; }
 
     .chat-messages {
       flex: 1;
@@ -254,24 +289,80 @@
     .message.received { background: rgba(16, 185, 129, 0.08); border: 1px solid var(--emerald); color: var(--emerald); align-self: flex-start; }
     .message.system { background: transparent; color: var(--text-muted); text-align: center; align-self: center; font-size: 0.7rem; border: none; }
 
+    .reply-quote {
+      background: rgba(7, 10, 16, 0.55);
+      border-left: 2px solid var(--cyan);
+      padding: 4px 6px;
+      border-radius: 3px;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .msg-toolbar {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+      font-size: 0.65rem;
+      opacity: 0.8;
+    }
+    .msg-tool-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0 2px;
+    }
+    .msg-tool-btn:hover { color: var(--cyan); }
+
+    .msg-reactions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .reaction-chip {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1px 6px;
+      font-size: 0.65rem;
+      color: var(--text-main);
+    }
+
     .msg-meta { font-size: 0.55rem; display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; color: var(--text-muted); }
-    .msg-media img, .msg-media video { max-width: 100%; border-radius: 4px; margin-top: 4px; }
+    .msg-media img, .msg-media video { max-width: 100%; max-height: 220px; border-radius: 4px; margin-top: 4px; }
+    .msg-media audio { width: 100%; max-width: 240px; margin-top: 4px; height: 32px; }
+
+    .reply-banner {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-elevated);
+      border-left: 3px solid var(--cyan);
+      padding: 5px 8px;
+      font-size: 0.68rem;
+      color: var(--text-main);
+    }
+    .reply-banner span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1; }
+    .reply-banner button { background: transparent; border: none; color: var(--danger); font-weight: bold; cursor: pointer; padding-left: 8px; }
 
     .chat-input-area { display: flex; flex-direction: column; padding: 6px; background: var(--bg-main); border-top: 1px solid var(--border); gap: 6px; width: 100%; }
-    .chat-input-row { display: flex; gap: 6px; align-items: center; width: 100%; }
+    .chat-input-row { display: flex; gap: 5px; align-items: center; width: 100%; }
     .chat-input-area textarea {
       flex: 1; min-width: 0; background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-main);
       padding: 6px; border-radius: 4px; font-size: 0.8rem; resize: none; height: 38px; outline: none;
     }
     .chat-input-area textarea:focus { border-color: var(--cyan); }
 
-    .btn-action { background: var(--bg-panel); border: 1px solid var(--border); color: var(--cyan); padding: 0 10px; height: 38px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold; flex-shrink: 0; }
-    .btn-send { background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%); color: #070a10; border: none; padding: 0 12px; height: 38px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.75rem; letter-spacing: 1px; flex-shrink: 0; }
+    .btn-action { background: var(--bg-panel); border: 1px solid var(--border); color: var(--cyan); padding: 0 8px; height: 38px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+    .btn-action.recording { border-color: var(--danger); color: var(--danger); background: rgba(239, 68, 68, 0.15); }
+    .btn-send { background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%); color: #070a10; border: none; padding: 0 10px; height: 38px; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 0.72rem; letter-spacing: 0.5px; flex-shrink: 0; }
 
     .footer-actions { display: flex; gap: 6px; margin-top: 6px; }
     .btn-wipe { flex: 1; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 6px; font-weight: bold; border-radius: 4px; font-size: 0.7rem; cursor: pointer; }
 
-    .toast { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); background: var(--emerald); color: var(--bg-main); padding: 5px 12px; border-radius: 12px; font-weight: bold; font-size: 0.7rem; opacity: 0.9; pointer-events: none; z-index: 1000; display: none; }
+    .toast { position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); background: var(--emerald); color: var(--bg-main); padding: 5px 12px; border-radius: 12px; font-weight: bold; font-size: 0.7rem; opacity: 0.95; pointer-events: none; z-index: 1000; display: none; white-space: nowrap; }
   </style>
 </head>
 <body oncontextmenu="return false;">
@@ -300,9 +391,10 @@
 
   <div id="homeView" class="view-screen">
     <div class="home-header">
-      <span>MI CÓDIGO: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
+      <span>CÓDIGO: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
       <button class="btn-new-chat" onclick="openNewChatPrompt()">+ Nuevo Chat</button>
     </div>
+    <input type="text" class="search-box" id="chatSearchInput" placeholder="🔍 Buscar chat por código..." oninput="renderChatList()">
     <div class="chat-list" id="chatList">
       <div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos. Pulsa "+ Nuevo Chat".</div>
     </div>
@@ -315,14 +407,18 @@
         <p id="requestText">Un nodo quiere iniciar comunicación contigo.</p>
         <div class="modal-actions">
           <button class="btn-reject" onclick="respondRequest(false)">RECHAZAR</button>
+          <button class="btn-reject" onclick="blockRequester()">BLOQUEAR</button>
           <button class="btn-accept" onclick="respondRequest(true)">ACEPTAR</button>
         </div>
       </div>
 
       <div class="chat-top-bar">
-        <button class="btn-back" onclick="goToHome()">❮ Volver</button>
-        <span id="activeChatTitle" style="color:var(--cyan); font-weight:bold;">CHAT</span>
-        <select id="destructTimer" style="background:var(--bg-main); border:1px solid var(--border); color:var(--cyan); font-size:0.65rem; padding:2px; border-radius:3px;">
+        <button class="btn-back" onclick="goToHome()">❮</button>
+        <div class="chat-title-wrap">
+          <span id="activeChatTitle" style="color:var(--cyan); font-weight:bold;">CHAT</span>
+          <span class="typing-indicator" id="typingIndicator"></span>
+        </div>
+        <select id="destructTimer" style="background:var(--bg-main); border:1px solid var(--border); color:var(--cyan); font-size:0.62rem; padding:2px; border-radius:3px;">
           <option value="0">⏳ Fijo</option>
           <option value="10">🔥 10s</option>
           <option value="30">🔥 30s</option>
@@ -334,12 +430,18 @@
         <div class="message system">Canal seguro cifrado.</div>
       </div>
 
+      <div class="reply-banner" id="replyBanner">
+        <span id="replyBannerText">Respondiendo...</span>
+        <button onclick="cancelReply()">✕</button>
+      </div>
+
       <div class="chat-input-area">
         <div class="chat-input-row">
           <input type="file" id="mediaInput" style="display:none" accept="image/*,video/*,audio/*" onchange="handleMedia(this)">
-          <button class="btn-action" onclick="document.getElementById('mediaInput').click()">📁</button>
-          <textarea id="messageInput" placeholder="Mensaje cifrado..." rows="1" onkeydown="handleKey(event)"></textarea>
-          <button class="btn-send" onclick="sendMessage('text')">CIFRAR</button>
+          <button class="btn-action" onclick="document.getElementById('mediaInput').click()" title="Adjuntar">📁</button>
+          <button class="btn-action" id="voiceBtn" onclick="toggleVoiceRecording()" title="Nota de voz">🎙️</button>
+          <textarea id="messageInput" placeholder="Mensaje cifrado..." rows="1" onkeydown="handleKey(event)" oninput="notifyTyping()"></textarea>
+          <button class="btn-send" onclick="sendMessage('text')">ENVIAR</button>
         </div>
       </div>
     </div>
@@ -359,14 +461,21 @@
     let currentTarget = '';
     let chatsData = {}; 
     let approvedChats = new Set();
+    let blockedChats = new Set();
     let pendingRequester = null;
     let audioCtx = null;
+    let replyingTo = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let lastTypingSent = 0;
+    let typingTimeout = null;
 
     window.addEventListener('DOMContentLoaded', () => {
       const saltStored = localStorage.getItem('cipher_auth_salt');
       if (!saltStored) {
         document.getElementById('authTitle').textContent = "CREAR PERFIL SEGURO";
-        document.getElementById('authDesc').textContent = "Crea tu Clave Maestra y define tu Código Fijo de usuario (4-6 caracteres).";
+        document.getElementById('authDesc').textContent = "Crea tu Clave Maestra y define tu Código Fijo de usuario (3-6 caracteres).";
         document.getElementById('customCodeInput').style.display = 'block';
       } else {
         myCode = localStorage.getItem('cipher_my_code') || '';
@@ -377,7 +486,6 @@
       }
     });
 
-    // Sincronización instantánea y reconexión inmediata al regresar a la app o enfocar la pestaña
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
         document.body.style.filter = 'none';
@@ -385,7 +493,6 @@
         if (myCode && (!socket || socket.readyState !== WebSocket.OPEN)) {
           initWebSocket();
         } else if (socket && socket.readyState === WebSocket.OPEN && myCode) {
-          // Re-enviar registro para forzar al servidor a descargar buzón offline acumulado
           socket.send(JSON.stringify({ type: 'register', code: myCode }));
         }
       } else {
@@ -475,6 +582,7 @@
         if (!encryptedBlob) {
           chatsData = {};
           approvedChats = new Set();
+          blockedChats = new Set();
           return;
         }
 
@@ -489,9 +597,11 @@
 
         chatsData = parsed.chats || {};
         approvedChats = new Set(parsed.approved || []);
+        blockedChats = new Set(parsed.blocked || []);
       } catch (e) {
         chatsData = {};
         approvedChats = new Set();
+        blockedChats = new Set();
       }
       renderChatList();
     }
@@ -499,7 +609,11 @@
     async function saveLocalChats() {
       if (!masterKey) return;
       try {
-        const payload = JSON.stringify({ chats: chatsData, approved: [...approvedChats] });
+        const payload = JSON.stringify({
+          chats: chatsData,
+          approved: [...approvedChats],
+          blocked: [...blockedChats]
+        });
         const enc = new TextEncoder();
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -552,6 +666,28 @@
         socket.onmessage = async (event) => {
           try {
             const rawPacket = JSON.parse(event.data);
+
+            if (rawPacket.from && blockedChats.has(rawPacket.from.toUpperCase())) {
+              return;
+            }
+
+            if (rawPacket.type === 'typing' && rawPacket.to === myCode) {
+              if (currentTarget === rawPacket.from) {
+                const ind = document.getElementById('typingIndicator');
+                ind.textContent = 'escribiendo...';
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => { ind.textContent = ''; }, 1800);
+              }
+              return;
+            }
+
+            if (rawPacket.type === 'reaction' && rawPacket.to === myCode) {
+              const channelSecret = await getUniversalChannelSecret(rawPacket.from);
+              const rData = await decryptPayload(rawPacket.payload, channelSecret);
+              applyReactionToMessage(rawPacket.from, rData.msgId, rData.emoji, rawPacket.from);
+              await saveLocalChats();
+              return;
+            }
 
             if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
               pendingRequester = rawPacket.from;
@@ -608,7 +744,8 @@
                 msgId: decrypted.id,
                 sender: rawPacket.from,
                 status: '●● LEÍDO',
-                time: decrypted.time
+                time: decrypted.time,
+                reactions: []
               });
 
               playNotificationSound();
@@ -621,7 +758,7 @@
               saveLocalChats();
 
               if (currentTarget === rawPacket.from) {
-                appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from, '●● LEÍDO', decrypted.time);
+                appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from, '●● LEÍDO', decrypted.time, []);
                 setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
               }
 
@@ -633,6 +770,15 @@
         };
       } catch (e) {
         console.error("Excepción socket:", e);
+      }
+    }
+
+    function notifyTyping() {
+      if (!socket || socket.readyState !== WebSocket.OPEN || !currentTarget) return;
+      const now = Date.now();
+      if (now - lastTypingSent > 1200) {
+        lastTypingSent = now;
+        socket.send(JSON.stringify({ type: 'typing', from: myCode, to: currentTarget }));
       }
     }
 
@@ -687,17 +833,23 @@
         showToast("No puedes chatear contigo mismo");
         return;
       }
+      if (blockedChats.has(target)) {
+        showToast("Este código está bloqueado");
+        return;
+      }
       openChat(target);
     }
 
     function openChat(code) {
       currentTarget = code;
+      cancelReply();
       ensureChatExists(code);
       
       chatsData[code].unread = 0;
       saveLocalChats();
 
       document.getElementById('activeChatTitle').textContent = `CHAT: ${code}`;
+      document.getElementById('typingIndicator').textContent = '';
       document.getElementById('homeView').classList.remove('active');
       document.getElementById('chatView').classList.add('active');
 
@@ -705,13 +857,14 @@
       container.innerHTML = '<div class="message system">Historial seguro cargado.</div>';
       
       chatsData[code].messages.forEach(msg => {
-        appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status, msg.time);
+        appendMessageToDOM(msg.data, msg.type, msg.timer, msg.msgId, msg.sender, msg.status, msg.time, msg.reactions || []);
       });
       renderChatList();
     }
 
     function goToHome() {
       currentTarget = '';
+      cancelReply();
       document.getElementById('chatView').classList.remove('active');
       document.getElementById('homeView').classList.add('active');
       renderChatList();
@@ -719,9 +872,11 @@
 
     function renderChatList() {
       const listEl = document.getElementById('chatList');
-      const codes = Object.keys(chatsData);
+      const query = (document.getElementById('chatSearchInput')?.value || '').trim().toUpperCase();
+      const codes = Object.keys(chatsData).filter(c => !query || c.includes(query));
+
       if (codes.length === 0) {
-        listEl.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos.</div>';
+        listEl.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats que coincidan.</div>';
         return;
       }
 
@@ -730,20 +885,48 @@
         const chat = chatsData[code];
         const msgs = chat.messages;
         const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].data.content : 'Canal establecido';
-        const preview = typeof lastMsg === 'string' ? (lastMsg.substring(0, 22) + '...') : '[Archivo Multimedia]';
+        const preview = typeof lastMsg === 'string'
+          ? (lastMsg.startsWith('data:audio') ? '🎙️ Nota de voz' : (lastMsg.startsWith('data:image') ? '🖼️ Imagen' : lastMsg.substring(0, 24)))
+          : '[Archivo]';
         const unreadBadge = chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : '';
         
         html += `
           <div class="chat-item">
             <div class="chat-item-info" onclick="openChat('${code}')">
               <h4>[${code}] ${unreadBadge}</h4>
-              <p>${preview}</p>
+              <p>${escapeHTML(preview)}</p>
             </div>
-            <button class="btn-delete-chat" onclick="deleteChat('${code}')">Borrar</button>
+            <div class="chat-item-actions">
+              <button class="btn-small-action" onclick="blockChat('${code}')">Bloquear</button>
+              <button class="btn-delete-chat" onclick="deleteChat('${code}')">Borrar</button>
+            </div>
           </div>
         `;
       });
       listEl.innerHTML = html;
+    }
+
+    function blockChat(code) {
+      if (confirm(`¿Bloquear permanentemente a [${code}]?`)) {
+        blockedChats.add(code);
+        delete chatsData[code];
+        approvedChats.delete(code);
+        saveLocalChats();
+        renderChatList();
+        showToast(`[${code}] bloqueado`);
+      }
+    }
+
+    function blockRequester() {
+      document.getElementById('requestModal').style.display = 'none';
+      if (pendingRequester) {
+        blockedChats.add(pendingRequester);
+        delete chatsData[pendingRequester];
+        saveLocalChats();
+        renderChatList();
+        showToast(`[${pendingRequester}] bloqueado`);
+      }
+      pendingRequester = null;
     }
 
     function deleteChat(code) {
@@ -820,6 +1003,93 @@
       return JSON.parse(new TextDecoder().decode(decrypted));
     }
 
+    function setReply(msgId, previewText) {
+      replyingTo = { msgId, preview: previewText };
+      document.getElementById('replyBannerText').textContent = `↩ Respondiendo: ${previewText}`;
+      document.getElementById('replyBanner').style.display = 'flex';
+      document.getElementById('messageInput').focus();
+    }
+
+    function cancelReply() {
+      replyingTo = null;
+      document.getElementById('replyBanner').style.display = 'none';
+    }
+
+    async function sendReaction(msgId, emoji) {
+      if (!currentTarget || !socket || socket.readyState !== WebSocket.OPEN) return;
+      applyReactionToMessage(currentTarget, msgId, emoji, myCode);
+      await saveLocalChats();
+      try {
+        const channelSecret = await getUniversalChannelSecret(currentTarget);
+        const encryptedPayload = await encryptPayload({ msgId, emoji }, channelSecret);
+        socket.send(JSON.stringify({ type: 'reaction', from: myCode, to: currentTarget, payload: encryptedPayload }));
+      } catch (e) {
+        console.error("Error enviando reacción", e);
+      }
+    }
+
+    function applyReactionToMessage(chatCode, msgId, emoji, reactorCode) {
+      const chat = chatsData[chatCode];
+      if (!chat) return;
+      const msgObj = chat.messages.find(m => m.msgId === msgId);
+      if (!msgObj) return;
+      msgObj.reactions = msgObj.reactions || [];
+      const existingIdx = msgObj.reactions.findIndex(r => r.by === reactorCode);
+      if (existingIdx >= 0) {
+        if (msgObj.reactions[existingIdx].emoji === emoji) {
+          msgObj.reactions.splice(existingIdx, 1);
+        } else {
+          msgObj.reactions[existingIdx].emoji = emoji;
+        }
+      } else {
+        msgObj.reactions.push({ by: reactorCode, emoji });
+      }
+      if (currentTarget === chatCode) {
+        renderReactionsDOM(msgId, msgObj.reactions);
+      }
+    }
+
+    function renderReactionsDOM(msgId, reactions) {
+      const box = document.getElementById('reactions_' + msgId);
+      if (!box) return;
+      const counts = {};
+      reactions.forEach(r => { counts[r.emoji] = (counts[r.emoji] || 0) + 1; });
+      box.innerHTML = Object.entries(counts)
+        .map(([emo, cnt]) => `<span class="reaction-chip">${emo}${cnt > 1 ? ' ' + cnt : ''}</span>`)
+        .join('');
+    }
+
+    async function toggleVoiceRecording() {
+      const btn = document.getElementById('voiceBtn');
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.onload = () => sendMessage('audio', reader.result);
+            reader.readAsDataURL(blob);
+            stream.getTracks().forEach(t => t.stop());
+          };
+          mediaRecorder.start();
+          isRecording = true;
+          btn.classList.add('recording');
+          btn.textContent = '⏹️';
+          showToast('Grabando nota de voz...');
+        } catch (e) {
+          showToast('Permiso de micrófono denegado');
+        }
+      } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        btn.classList.remove('recording');
+        btn.textContent = '🎙️';
+      }
+    }
+
     async function sendMessage(type, contentOverride = null) {
       if (!masterKey) {
         showToast('Clave maestra requerida');
@@ -839,24 +1109,34 @@
 
       ensureChatExists(currentTarget);
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
-      const dataObj = { id: msgId, from: myCode, type: type, content: text, timer: timer, time: timeString };
+      const replySnapshot = replyingTo ? { ...replyingTo } : null;
+      const dataObj = {
+        id: msgId,
+        from: myCode,
+        type: type,
+        content: text,
+        timer: timer,
+        time: timeString,
+        replyTo: replySnapshot
+      };
 
       if (!approvedChats.has(currentTarget)) {
         const reqId = 'pending_req_' + currentTarget;
-        chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE', time: timeString });
+        chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId: reqId, status: '⏳ SOLICITUD PENDIENTE', time: timeString, reactions: [] });
         saveLocalChats();
-        appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE', timeString);
+        appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE', timeString, []);
 
         socket.send(JSON.stringify({ type: 'chat_request', from: myCode, to: currentTarget }));
         showToast('Solicitud de chat enviada');
         if (!contentOverride) input.value = '';
+        cancelReply();
         renderChatList();
         return;
       }
 
-      chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA', time: timeString });
+      chatsData[currentTarget].messages.push({ data: dataObj, type: 'sent', timer, msgId, status: '⏳ EN ESPERA', time: timeString, reactions: [] });
       saveLocalChats();
-      appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA', timeString);
+      appendMessageToDOM(dataObj, 'sent', timer, msgId, myCode, '⏳ EN ESPERA', timeString, []);
 
       try {
         const channelSecret = await getUniversalChannelSecret(currentTarget);
@@ -865,6 +1145,7 @@
         socket.send(JSON.stringify({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64 }));
         updateMessageStatus(msgId, '✓ ENVIADO');
         if (!contentOverride) input.value = '';
+        cancelReply();
         saveLocalChats();
         renderChatList();
       } catch (e) {
@@ -897,27 +1178,46 @@
         }
       };
       reader.readAsDataURL(file);
+      input.value = '';
     }
 
-    function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO', msgTime = '') {
+    function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO', msgTime = '', reactions = []) {
       const container = document.getElementById('chatMessages');
       const div = document.createElement('div');
       div.className = `message ${type}`;
       if (msgId) div.id = msgId;
 
       let innerHTML = '';
+      if (data.replyTo && data.replyTo.preview) {
+        innerHTML += `<div class="reply-quote">↩ ${escapeHTML(data.replyTo.preview)}</div>`;
+      }
+
+      let plainPreview = '[Multimedia]';
       if (data.type === 'text') {
+        plainPreview = data.content.substring(0, 40);
         innerHTML += `<span>${escapeHTML(data.content)}</span>`;
       } else if (data.type === 'image') {
+        plainPreview = '🖼️ Imagen';
         innerHTML += `<div class="msg-media"><img src="${data.content}"/></div>`;
       } else if (data.type === 'video') {
+        plainPreview = '🎥 Video';
         innerHTML += `<div class="msg-media"><video controls src="${data.content}"></video></div>`;
       } else if (data.type === 'audio') {
+        plainPreview = '🎙️ Audio';
         innerHTML += `<div class="msg-media"><audio controls src="${data.content}"></audio></div>`;
       }
 
       const displayTime = msgTime || data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const metaLabel = type === 'sent' ? initialStatus : `De: ${senderCode}`;
+
+      innerHTML += `<div class="msg-reactions" id="reactions_${msgId}"></div>`;
+      innerHTML += `
+        <div class="msg-toolbar">
+          <button class="msg-tool-btn" onclick="setReply('${msgId}', '${escapeJS(plainPreview)}')">↩ Responder</button>
+          <button class="msg-tool-btn" onclick="sendReaction('${msgId}', '👍')">👍</button>
+          <button class="msg-tool-btn" onclick="sendReaction('${msgId}', '❤️')">❤️</button>
+          <button class="msg-tool-btn" onclick="sendReaction('${msgId}', '🔥')">🔥</button>
+        </div>`;
       
       innerHTML += `
         <div class="msg-meta">
@@ -927,6 +1227,7 @@
       
       div.innerHTML = innerHTML;
       container.appendChild(div);
+      renderReactionsDOM(msgId, reactions);
       container.scrollTop = container.scrollHeight;
 
       if (timer > 0 && type === 'received') {
@@ -962,6 +1263,7 @@
       masterKey = '';
       chatsData = {};
       approvedChats.clear();
+      blockedChats.clear();
       localStorage.clear();
       document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EJECUTADA. BOVEDA DESTRUIDA.</div>';
       if (socket) socket.close();
@@ -979,9 +1281,13 @@
     }
 
     function escapeHTML(str) {
-      return str.replace(/[&<>'"]/g, 
+      return String(str).replace(/[&<>'"]/g, 
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
       );
+    }
+
+    function escapeJS(str) {
+      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ');
     }
   </script>
 </body>
