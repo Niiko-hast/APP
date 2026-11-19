@@ -62,7 +62,7 @@
     .brand h1 { font-size: 1rem; letter-spacing: 1.5px; color: var(--cyan); }
 
     .status-badge {
-      font-size: 0.58rem;
+      font-size: 0.56rem;
       padding: 3px 6px;
       border: 1px solid var(--danger);
       color: var(--danger);
@@ -110,7 +110,6 @@
       text-align: center;
       margin-bottom: 10px;
     }
-    .auth-container input#customCodeInput { text-transform: uppercase; }
     .auth-container input:focus { border-color: var(--cyan); }
     .btn-auth {
       background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
@@ -132,7 +131,7 @@
       margin-bottom: 6px;
       gap: 6px;
     }
-    .home-header span { font-size: 0.72rem; color: var(--cyan); }
+    .home-header span { font-size: 0.68rem; color: var(--cyan); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .btn-new-chat {
       background: var(--bg-panel);
       border: 1px solid var(--cyan);
@@ -181,7 +180,7 @@
       gap: 8px;
     }
     .chat-item-info { flex: 1; cursor: pointer; min-width: 0; }
-    .chat-item-info h4 { font-size: 0.85rem; color: var(--cyan); display: flex; justify-content: space-between; align-items: center; }
+    .chat-item-info h4 { font-size: 0.82rem; color: var(--cyan); display: flex; justify-content: space-between; align-items: center; }
     .chat-item-info p { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     
     .unread-badge {
@@ -382,19 +381,18 @@
   <div id="authView" class="view-screen active">
     <div class="auth-container">
       <h2 id="authTitle">ACCESO BLINDADO</h2>
-      <p id="authDesc">Introduce tu Clave Maestra personal y tu Código Único.</p>
+      <p id="authDesc">Introduce tu Clave Maestra para desbloquear tu identidad criptográfica.</p>
       <input type="password" id="masterKeyInput" placeholder="Clave Maestra..." autocomplete="off">
-      <input type="text" id="customCodeInput" maxlength="6" placeholder="Tu Código Fijo (Ej. OMAR)..." autocomplete="off" style="display:none;">
       <button class="btn-auth" onclick="triggerAuth()">ACCEDER</button>
     </div>
   </div>
 
   <div id="homeView" class="view-screen">
     <div class="home-header">
-      <span>CÓDIGO: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
+      <span>ID: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
       <button class="btn-new-chat" onclick="openNewChatPrompt()">+ Nuevo Chat</button>
     </div>
-    <input type="text" class="search-box" id="chatSearchInput" placeholder="🔍 Buscar chat por código..." oninput="renderChatList()">
+    <input type="text" class="search-box" id="chatSearchInput" placeholder="🔍 Buscar CIPHER-ID..." oninput="renderChatList()">
     <div class="chat-list" id="chatList">
       <div style="text-align:center; color:var(--text-muted); font-size:0.7rem; margin-top:20px;">No hay chats activos. Pulsa "+ Nuevo Chat".</div>
     </div>
@@ -427,7 +425,7 @@
       </div>
 
       <div class="chat-messages" id="chatMessages">
-        <div class="message system">Canal seguro cifrado.</div>
+        <div class="message system">Canal seguro cifrado (Malla + Relé).</div>
       </div>
 
       <div class="reply-banner" id="replyBanner">
@@ -455,7 +453,11 @@
 
   <script>
     const WS_URL = 'wss://app-cipher.onrender.com'; 
+    const MESH_CHANNEL_NAME = 'CIPHER_MESH_V1';
+    const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
     let socket;
+    let meshChannel = null;
     let masterKey = '';
     let myCode = '';
     let currentTarget = '';
@@ -470,21 +472,49 @@
     let isRecording = false;
     let lastTypingSent = 0;
     let typingTimeout = null;
+    let seenPackets = new Set();
+    let rtcPeers = new Map();
 
     window.addEventListener('DOMContentLoaded', () => {
       const saltStored = localStorage.getItem('cipher_auth_salt');
       if (!saltStored) {
-        document.getElementById('authTitle').textContent = "CREAR PERFIL SEGURO";
-        document.getElementById('authDesc').textContent = "Crea tu Clave Maestra y define tu Código Fijo de usuario (3-6 caracteres).";
-        document.getElementById('customCodeInput').style.display = 'block';
+        document.getElementById('authTitle').textContent = "CREAR IDENTIDAD CRIPTOGRÁFICA";
+        document.getElementById('authDesc').textContent = "Define tu Clave Maestra. Tu código único sin colisiones se generará desde tu clave pública.";
       } else {
         myCode = localStorage.getItem('cipher_my_code') || '';
       }
-      
+
+      initLocalMeshChannel();
+
       if ("Notification" in window && Notification.permission !== "granted") {
         Notification.requestPermission();
       }
     });
+
+    function initLocalMeshChannel() {
+      if ('BroadcastChannel' in window) {
+        meshChannel = new BroadcastChannel(MESH_CHANNEL_NAME);
+        meshChannel.onmessage = (ev) => {
+          if (ev.data) handleIncomingPacket(ev.data, 'MESH');
+        };
+      }
+    }
+
+    // Genera identidad única derivada de clave pública ECDSA + SHA-256 (evita duplicados)
+    async function generateCryptoFingerprintCode() {
+      const keyPair = await crypto.subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign', 'verify']
+      );
+      const rawPub = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', rawPub);
+      const hex = Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
+      return 'CIPHER-' + hex.substring(0, 6);
+    }
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
@@ -507,7 +537,6 @@
 
     async function handleMasterKey() {
       const keyVal = document.getElementById('masterKeyInput').value.trim();
-      const codeVal = document.getElementById('customCodeInput').value.trim().toUpperCase();
 
       if (!keyVal) {
         showToast('Introduce tu Clave Maestra');
@@ -519,12 +548,7 @@
 
       try {
         if (!saltStored || !verifStored) {
-          if (!codeVal || codeVal.length < 3) {
-            showToast('Define un Código Fijo válido (mín. 3 caracteres)');
-            return;
-          }
-
-          myCode = codeVal;
+          myCode = await generateCryptoFingerprintCode();
           localStorage.setItem('cipher_my_code', myCode);
 
           const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -538,10 +562,9 @@
           
           masterKey = keyVal;
           document.getElementById('masterKeyInput').value = '';
-          document.getElementById('customCodeInput').value = '';
           await loadLocalChats(keyVal);
           startAppSession();
-          showToast('¡Perfil y Clave Maestra creados!');
+          showToast(`Identidad generada: ${myCode}`);
         } else {
           const salt = Uint8Array.from(atob(saltStored), c => c.charCodeAt(0));
           const [ivB64, dataB64] = verifStored.split(":");
@@ -636,6 +659,89 @@
       return "CIPHER_SECURE_CHANNEL_" + sorted;
     }
 
+    // Envío híbrido: WebRTC P2P si existe + Malla local + Relé WebSocket
+    async function dispatchPacket(packet) {
+      const enriched = {
+        ...packet,
+        pktId: packet.pktId || ('pkt_' + Math.random().toString(36).substring(2, 11)),
+        ttl: typeof packet.ttl === 'number' ? packet.ttl : 5
+      };
+      seenPackets.add(enriched.pktId);
+
+      // 1. Malla local (entre pestañas/nodos locales)
+      if (meshChannel) {
+        meshChannel.postMessage(enriched);
+      }
+
+      // 2. Canal directo WebRTC DataChannel si está abierto con el destino
+      const peer = rtcPeers.get(enriched.to);
+      if (peer && peer.dc && peer.dc.readyState === 'open') {
+        try {
+          peer.dc.send(JSON.stringify(enriched));
+        } catch (_) {}
+      }
+
+      // 3. Relé WebSocket como respaldo de red
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(enriched));
+      }
+    }
+
+    // Señalización WebRTC P2P ligera a través del transporte disponible
+    async function ensurePeerConnection(targetCode, initiator) {
+      if (!targetCode || targetCode === myCode) return null;
+      let entry = rtcPeers.get(targetCode);
+      if (entry && entry.pc && entry.pc.connectionState !== 'closed') {
+        return entry;
+      }
+
+      const pc = new RTCPeerConnection(RTC_CONFIG);
+      entry = { pc, dc: null };
+      rtcPeers.set(targetCode, entry);
+
+      pc.onicecandidate = (ev) => {
+        if (ev.candidate) {
+          dispatchPacket({
+            type: 'rtc_ice',
+            from: myCode,
+            to: targetCode,
+            candidate: ev.candidate,
+            ttl: 3
+          });
+        }
+      };
+
+      pc.ondatachannel = (ev) => {
+        entry.dc = ev.channel;
+        bindDataChannel(ev.channel);
+      };
+
+      if (initiator) {
+        const dc = pc.createDataChannel('cipher_mesh_dc');
+        entry.dc = dc;
+        bindDataChannel(dc);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        dispatchPacket({
+          type: 'rtc_offer',
+          from: myCode,
+          to: targetCode,
+          sdp: offer,
+          ttl: 3
+        });
+      }
+      return entry;
+    }
+
+    function bindDataChannel(dc) {
+      dc.onmessage = (ev) => {
+        try {
+          const pkt = JSON.parse(ev.data);
+          handleIncomingPacket(pkt, 'P2P');
+        } catch (_) {}
+      };
+    }
+
     function initWebSocket() {
       const badge = document.getElementById('netStatus');
       badge.textContent = 'CONECTANDO...';
@@ -650,7 +756,7 @@
         socket = new WebSocket(WS_URL);
 
         socket.onopen = () => {
-          badge.textContent = 'EN LÍNEA (AES)';
+          badge.textContent = 'MALLA + AES';
           badge.className = 'status-badge connected';
           if (myCode) {
             socket.send(JSON.stringify({ type: 'register', code: myCode }));
@@ -658,112 +764,15 @@
         };
 
         socket.onclose = () => {
-          badge.textContent = 'RECONECTANDO...';
+          badge.textContent = 'MALLA LOCAL...';
           badge.className = 'status-badge connecting';
           setTimeout(initWebSocket, 2000);
         };
 
-        socket.onmessage = async (event) => {
+        socket.onmessage = (event) => {
           try {
             const rawPacket = JSON.parse(event.data);
-
-            if (rawPacket.from && blockedChats.has(rawPacket.from.toUpperCase())) {
-              return;
-            }
-
-            if (rawPacket.type === 'typing' && rawPacket.to === myCode) {
-              if (currentTarget === rawPacket.from) {
-                const ind = document.getElementById('typingIndicator');
-                ind.textContent = 'escribiendo...';
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => { ind.textContent = ''; }, 1800);
-              }
-              return;
-            }
-
-            if (rawPacket.type === 'reaction' && rawPacket.to === myCode) {
-              const channelSecret = await getUniversalChannelSecret(rawPacket.from);
-              const rData = await decryptPayload(rawPacket.payload, channelSecret);
-              applyReactionToMessage(rawPacket.from, rData.msgId, rData.emoji, rawPacket.from);
-              await saveLocalChats();
-              return;
-            }
-
-            if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
-              pendingRequester = rawPacket.from;
-              ensureChatExists(pendingRequester);
-              document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro contigo.`;
-              document.getElementById('requestModal').style.display = 'flex';
-              playNotificationSound();
-              return;
-            }
-
-            if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
-              if (rawPacket.accepted) {
-                approvedChats.add(rawPacket.from);
-                ensureChatExists(rawPacket.from);
-                chatsData[rawPacket.from].approved = true;
-                saveLocalChats();
-                renderChatList();
-                showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
-                if (currentTarget === rawPacket.from) {
-                  updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
-                }
-              } else {
-                showToast(`[${rawPacket.from}] rechazó el chat`);
-              }
-              return;
-            }
-
-            if (rawPacket.type === 'ack' && rawPacket.target === myCode) {
-              updateMessageStatus(rawPacket.msgId, rawPacket.status);
-              return;
-            }
-
-            if (rawPacket.type === 'msg' && rawPacket.to === myCode) {
-              if (!approvedChats.has(rawPacket.from)) {
-                pendingRequester = rawPacket.from;
-                document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
-                document.getElementById('requestModal').style.display = 'flex';
-                playNotificationSound();
-                return;
-              }
-
-              const channelSecret = await getUniversalChannelSecret(rawPacket.from);
-              const decrypted = await decryptPayload(rawPacket.payload, channelSecret);
-              
-              ensureChatExists(rawPacket.from);
-              chatsData[rawPacket.from].approved = true;
-
-              sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
-
-              chatsData[rawPacket.from].messages.push({
-                data: decrypted,
-                type: 'received',
-                timer: decrypted.timer,
-                msgId: decrypted.id,
-                sender: rawPacket.from,
-                status: '●● LEÍDO',
-                time: decrypted.time,
-                reactions: []
-              });
-
-              playNotificationSound();
-              triggerNotification(rawPacket.from);
-
-              if (currentTarget !== rawPacket.from) {
-                chatsData[rawPacket.from].unread = (chatsData[rawPacket.from].unread || 0) + 1;
-              }
-
-              saveLocalChats();
-
-              if (currentTarget === rawPacket.from) {
-                appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from, '●● LEÍDO', decrypted.time, []);
-                setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
-              }
-
-              renderChatList();
-            }
+            handleIncomingPacket(rawPacket, 'WS');
           } catch (e) {
             console.error("Error procesando paquete entrante:", e);
           }
@@ -773,12 +782,161 @@
       }
     }
 
+    async function handleIncomingPacket(rawPacket, sourceVia) {
+      try {
+        if (rawPacket.pktId) {
+          if (seenPackets.has(rawPacket.pktId)) return;
+          seenPackets.add(rawPacket.pktId);
+          if (seenPackets.size > 2000) {
+            seenPackets = new Set([...seenPackets].slice(-1000));
+          }
+        }
+
+        if (rawPacket.from && blockedChats.has(String(rawPacket.from).toUpperCase())) {
+          return;
+        }
+
+        // Retransmisión en malla si el paquete no es para este nodo y tiene TTL > 0
+        if (rawPacket.to && rawPacket.to !== myCode && typeof rawPacket.ttl === 'number' && rawPacket.ttl > 0 && sourceVia !== 'WS') {
+          const relayPkt = { ...rawPacket, ttl: rawPacket.ttl - 1 };
+          if (meshChannel) meshChannel.postMessage(relayPkt);
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(relayPkt));
+          }
+          return;
+        }
+
+        if (rawPacket.type === 'rtc_offer' && rawPacket.to === myCode) {
+          const entry = await ensurePeerConnection(rawPacket.from, false);
+          if (entry) {
+            await entry.pc.setRemoteDescription(new RTCSessionDescription(rawPacket.sdp));
+            const answer = await entry.pc.createAnswer();
+            await entry.pc.setLocalDescription(answer);
+            dispatchPacket({ type: 'rtc_answer', from: myCode, to: rawPacket.from, sdp: answer, ttl: 3 });
+          }
+          return;
+        }
+
+        if (rawPacket.type === 'rtc_answer' && rawPacket.to === myCode) {
+          const entry = rtcPeers.get(rawPacket.from);
+          if (entry && entry.pc) {
+            await entry.pc.setRemoteDescription(new RTCSessionDescription(rawPacket.sdp));
+          }
+          return;
+        }
+
+        if (rawPacket.type === 'rtc_ice' && rawPacket.to === myCode) {
+          const entry = rtcPeers.get(rawPacket.from);
+          if (entry && entry.pc && rawPacket.candidate) {
+            await entry.pc.addIceCandidate(new RTCIceCandidate(rawPacket.candidate)).catch(() => {});
+          }
+          return;
+        }
+
+        if (rawPacket.type === 'typing' && rawPacket.to === myCode) {
+          if (currentTarget === rawPacket.from) {
+            const ind = document.getElementById('typingIndicator');
+            ind.textContent = 'escribiendo...';
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => { ind.textContent = ''; }, 1800);
+          }
+          return;
+        }
+
+        if (rawPacket.type === 'reaction' && rawPacket.to === myCode) {
+          const channelSecret = await getUniversalChannelSecret(rawPacket.from);
+          const rData = await decryptPayload(rawPacket.payload, channelSecret);
+          applyReactionToMessage(rawPacket.from, rData.msgId, rData.emoji, rawPacket.from);
+          await saveLocalChats();
+          return;
+        }
+
+        if (rawPacket.type === 'chat_request' && rawPacket.to === myCode) {
+          pendingRequester = rawPacket.from;
+          ensureChatExists(pendingRequester);
+          document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] quiere iniciar un canal seguro contigo.`;
+          document.getElementById('requestModal').style.display = 'flex';
+          playNotificationSound();
+          return;
+        }
+
+        if (rawPacket.type === 'chat_response' && rawPacket.to === myCode) {
+          if (rawPacket.accepted) {
+            approvedChats.add(rawPacket.from);
+            ensureChatExists(rawPacket.from);
+            chatsData[rawPacket.from].approved = true;
+            saveLocalChats();
+            renderChatList();
+            showToast(`¡Chat aceptado por [${rawPacket.from}]!`);
+            if (currentTarget === rawPacket.from) {
+              updateMessageStatus('pending_req_' + rawPacket.from, '✓ CANAL ABIERTO');
+            }
+          } else {
+            showToast(`[${rawPacket.from}] rechazó el chat`);
+          }
+          return;
+        }
+
+        if (rawPacket.type === 'ack' && rawPacket.target === myCode) {
+          updateMessageStatus(rawPacket.msgId, rawPacket.status);
+          return;
+        }
+
+        if (rawPacket.type === 'msg' && rawPacket.to === myCode) {
+          if (!approvedChats.has(rawPacket.from)) {
+            pendingRequester = rawPacket.from;
+            document.getElementById('requestText').textContent = `El nodo [${pendingRequester}] te envió un mensaje pero requiere aprobación.`;
+            document.getElementById('requestModal').style.display = 'flex';
+            playNotificationSound();
+            return;
+          }
+
+          const channelSecret = await getUniversalChannelSecret(rawPacket.from);
+          const decrypted = await decryptPayload(rawPacket.payload, channelSecret);
+          
+          ensureChatExists(rawPacket.from);
+          chatsData[rawPacket.from].approved = true;
+
+          sendAck(decrypted.id, '✓✓ ENTREGADO', rawPacket.from);
+
+          chatsData[rawPacket.from].messages.push({
+            data: decrypted,
+            type: 'received',
+            timer: decrypted.timer,
+            msgId: decrypted.id,
+            sender: rawPacket.from,
+            status: '●● LEÍDO',
+            time: decrypted.time,
+            reactions: []
+          });
+
+          playNotificationSound();
+          triggerNotification(rawPacket.from);
+
+          if (currentTarget !== rawPacket.from) {
+            chatsData[rawPacket.from].unread = (chatsData[rawPacket.from].unread || 0) + 1;
+          }
+
+          saveLocalChats();
+
+          if (currentTarget === rawPacket.from) {
+            appendMessageToDOM(decrypted, 'received', decrypted.timer, decrypted.id, rawPacket.from, '●● LEÍDO', decrypted.time, []);
+            setTimeout(() => sendAck(decrypted.id, '●● LEÍDO', rawPacket.from), 1000);
+          }
+
+          renderChatList();
+        }
+      } catch (e) {
+        console.error("Error procesando paquete entrante:", e);
+      }
+    }
+
     function notifyTyping() {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !currentTarget) return;
+      if (!currentTarget) return;
       const now = Date.now();
       if (now - lastTypingSent > 1200) {
         lastTypingSent = now;
-        socket.send(JSON.stringify({ type: 'typing', from: myCode, to: currentTarget }));
+        dispatchPacket({ type: 'typing', from: myCode, to: currentTarget, ttl: 2 });
       }
     }
 
@@ -826,7 +984,7 @@
     }
 
     function openNewChatPrompt() {
-      const code = prompt("Introduce el Código Fijo del usuario al que deseas contactar:");
+      const code = prompt("Introduce el Código Único del nodo (Ej. CIPHER-A1B2C3):");
       if (!code) return;
       const target = code.trim().toUpperCase();
       if (target === myCode) {
@@ -844,6 +1002,7 @@
       currentTarget = code;
       cancelReply();
       ensureChatExists(code);
+      ensurePeerConnection(code, true);
       
       chatsData[code].unread = 0;
       saveLocalChats();
@@ -941,29 +1100,31 @@
 
     function respondRequest(accepted) {
       document.getElementById('requestModal').style.display = 'none';
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
-      if (accepted) {
+      if (accepted && pendingRequester) {
         approvedChats.add(pendingRequester);
         ensureChatExists(pendingRequester);
         chatsData[pendingRequester].approved = true;
         saveLocalChats();
+        ensurePeerConnection(pendingRequester, false);
         showToast(`Canal abierto con [${pendingRequester}]`);
         renderChatList();
       }
 
-      socket.send(JSON.stringify({
-        type: 'chat_response',
-        from: myCode,
-        to: pendingRequester,
-        accepted: accepted
-      }));
+      if (pendingRequester) {
+        dispatchPacket({
+          type: 'chat_response',
+          from: myCode,
+          to: pendingRequester,
+          accepted: accepted,
+          ttl: 4
+        });
+      }
       pendingRequester = null;
     }
 
     function sendAck(msgId, statusText, targetCode) {
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
-      socket.send(JSON.stringify({ type: 'ack', msgId: msgId, status: statusText, target: targetCode }));
+      dispatchPacket({ type: 'ack', msgId: msgId, status: statusText, target: targetCode, to: targetCode, ttl: 4 });
     }
 
     async function deriveKey(password, salt) {
@@ -1016,13 +1177,13 @@
     }
 
     async function sendReaction(msgId, emoji) {
-      if (!currentTarget || !socket || socket.readyState !== WebSocket.OPEN) return;
+      if (!currentTarget) return;
       applyReactionToMessage(currentTarget, msgId, emoji, myCode);
       await saveLocalChats();
       try {
         const channelSecret = await getUniversalChannelSecret(currentTarget);
         const encryptedPayload = await encryptPayload({ msgId, emoji }, channelSecret);
-        socket.send(JSON.stringify({ type: 'reaction', from: myCode, to: currentTarget, payload: encryptedPayload }));
+        dispatchPacket({ type: 'reaction', from: myCode, to: currentTarget, payload: encryptedPayload, ttl: 4 });
       } catch (e) {
         console.error("Error enviando reacción", e);
       }
@@ -1102,10 +1263,6 @@
       const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       if (!text && type === 'text') return;
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        showToast('Red desconectada');
-        return;
-      }
 
       ensureChatExists(currentTarget);
       const msgId = 'msg_' + Math.random().toString(36).substring(2, 9);
@@ -1126,7 +1283,7 @@
         saveLocalChats();
         appendMessageToDOM(dataObj, 'sent', timer, reqId, myCode, '⏳ SOLICITUD PENDIENTE', timeString, []);
 
-        socket.send(JSON.stringify({ type: 'chat_request', from: myCode, to: currentTarget }));
+        dispatchPacket({ type: 'chat_request', from: myCode, to: currentTarget, ttl: 5 });
         showToast('Solicitud de chat enviada');
         if (!contentOverride) input.value = '';
         cancelReply();
@@ -1142,7 +1299,7 @@
         const channelSecret = await getUniversalChannelSecret(currentTarget);
         const encryptedBase64 = await encryptPayload(dataObj, channelSecret);
         
-        socket.send(JSON.stringify({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64 }));
+        dispatchPacket({ type: 'msg', from: myCode, to: currentTarget, payload: encryptedBase64, ttl: 5 });
         updateMessageStatus(msgId, '✓ ENVIADO');
         if (!contentOverride) input.value = '';
         cancelReply();
@@ -1264,6 +1421,9 @@
       chatsData = {};
       approvedChats.clear();
       blockedChats.clear();
+      seenPackets.clear();
+      rtcPeers.forEach(p => p.pc && p.pc.close());
+      rtcPeers.clear();
       localStorage.clear();
       document.getElementById('chatMessages').innerHTML = '<div class="message system" style="color:var(--danger)">⚠️ PURGA DE SEGURIDAD EJECUTADA. BOVEDA DESTRUIDA.</div>';
       if (socket) socket.close();
