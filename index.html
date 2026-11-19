@@ -55,15 +55,33 @@
     .brand {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
-    .brand svg { width: 22px; height: 22px; flex-shrink: 0; }
-    .brand h1 { font-size: 1rem; letter-spacing: 1.5px; color: var(--cyan); }
+    .brand svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .brand h1 { font-size: 0.92rem; letter-spacing: 1px; color: var(--cyan); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-header {
+      background: rgba(0, 243, 255, 0.08);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 0.58rem;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+    }
 
     .status-badge {
-      font-size: 0.56rem;
-      padding: 3px 6px;
+      font-size: 0.55rem;
+      padding: 3px 5px;
       border: 1px solid var(--danger);
       color: var(--danger);
       border-radius: 4px;
@@ -95,7 +113,7 @@
       border: 1px solid var(--border);
       border-radius: 8px;
     }
-    .auth-container h2 { color: var(--cyan); font-size: 1.1rem; margin-bottom: 10px; }
+    .auth-container h2 { color: var(--cyan); font-size: 1.05rem; margin-bottom: 10px; }
     .auth-container p { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 15px; line-height: 1.4; }
     .auth-container input {
       width: 100%;
@@ -303,7 +321,8 @@
       gap: 6px;
       margin-top: 4px;
       font-size: 0.65rem;
-      opacity: 0.8;
+      opacity: 0.85;
+      flex-wrap: wrap;
     }
     .msg-tool-btn {
       background: transparent;
@@ -330,7 +349,8 @@
     }
 
     .msg-meta { font-size: 0.55rem; display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; color: var(--text-muted); }
-    .msg-media img, .msg-media video { max-width: 100%; max-height: 220px; border-radius: 4px; margin-top: 4px; }
+    .msg-media img { max-width: 100%; max-height: 220px; border-radius: 4px; margin-top: 4px; cursor: zoom-in; }
+    .msg-media video { max-width: 100%; max-height: 220px; border-radius: 4px; margin-top: 4px; cursor: pointer; }
     .msg-media audio { width: 100%; max-width: 240px; margin-top: 4px; height: 32px; }
 
     .reply-banner {
@@ -361,7 +381,122 @@
     .footer-actions { display: flex; gap: 6px; margin-top: 6px; }
     .btn-wipe { flex: 1; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 6px; font-weight: bold; border-radius: 4px; font-size: 0.7rem; cursor: pointer; }
 
-    .toast { position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); background: var(--emerald); color: var(--bg-main); padding: 5px 12px; border-radius: 12px; font-weight: bold; font-size: 0.7rem; opacity: 0.95; pointer-events: none; z-index: 1000; display: none; white-space: nowrap; }
+    .toast { position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); background: var(--emerald); color: var(--bg-main); padding: 5px 12px; border-radius: 12px; font-weight: bold; font-size: 0.7rem; opacity: 0.95; pointer-events: none; z-index: 1200; display: none; white-space: nowrap; }
+
+    .overlay-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 10, 16, 0.96);
+      z-index: 900;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 14px;
+      gap: 10px;
+    }
+    .overlay-modal.active { display: flex; }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      color: var(--cyan);
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .editor-stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      position: relative;
+      padding: 8px;
+    }
+    .editor-stage img, .editor-stage video {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 6px;
+      transition: transform 0.15s ease, filter 0.15s ease;
+    }
+    .controls-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 0.72rem;
+    }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .setting-row select, .setting-row input[type="checkbox"] {
+      accent-color: var(--cyan);
+    }
+    .setting-row select {
+      background: var(--bg-main);
+      border: 1px solid var(--border);
+      color: var(--cyan);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .slider-row input[type="range"] { flex: 1; accent-color: var(--cyan); }
+    .editor-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn-sec {
+      flex: 1;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 8px;
+      border-radius: 5px;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .btn-pri {
+      flex: 1;
+      background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
+      border: none;
+      color: #070a10;
+      padding: 8px;
+      border-radius: 5px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .suggest-textarea {
+      width: 100%;
+      flex: 1;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 0.8rem;
+      resize: none;
+      outline: none;
+    }
+    .suggest-textarea:focus { border-color: var(--cyan); }
   </style>
 </head>
 <body oncontextmenu="return false;">
@@ -375,7 +510,11 @@
       </svg>
       <h1>CIPHER SHIELD</h1>
     </div>
-    <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
+    <div class="header-right">
+      <button class="btn-header" id="btnOpenSuggest" onclick="openSuggestionsModal()">💡 Sugerencias</button>
+      <button class="btn-header" id="btnOpenSettings" onclick="openSettingsModal()">⚙️ Ajustes</button>
+      <span class="status-badge connecting" id="netStatus">CONECTANDO...</span>
+    </div>
   </header>
 
   <div id="authView" class="view-screen active">
@@ -383,14 +522,14 @@
       <h2 id="authTitle">ACCESO BLINDADO</h2>
       <p id="authDesc">Introduce tu Clave Maestra para desbloquear tu identidad criptográfica.</p>
       <input type="password" id="masterKeyInput" placeholder="Clave Maestra..." autocomplete="off">
-      <button class="btn-auth" onclick="triggerAuth()">ACCEDER</button>
+      <button class="btn-auth" id="btnAuthSubmit" onclick="triggerAuth()">ACCEDER</button>
     </div>
   </div>
 
   <div id="homeView" class="view-screen">
     <div class="home-header">
       <span>ID: <strong id="displayMyCode" style="color:var(--emerald);">...</strong></span>
-      <button class="btn-new-chat" onclick="openNewChatPrompt()">+ Nuevo Chat</button>
+      <button class="btn-new-chat" id="btnNewChat" onclick="openNewChatPrompt()">+ Nuevo Chat</button>
     </div>
     <input type="text" class="search-box" id="chatSearchInput" placeholder="🔍 Buscar CIPHER-ID..." oninput="renderChatList()">
     <div class="chat-list" id="chatList">
@@ -401,12 +540,12 @@
   <div id="chatView" class="view-screen">
     <div class="chat-container">
       <div class="request-modal" id="requestModal">
-        <h3>SOLICITUD DE CHAT ENTRANTE</h3>
+        <h3 id="reqModalTitle">SOLICITUD DE CHAT ENTRANTE</h3>
         <p id="requestText">Un nodo quiere iniciar comunicación contigo.</p>
         <div class="modal-actions">
-          <button class="btn-reject" onclick="respondRequest(false)">RECHAZAR</button>
-          <button class="btn-reject" onclick="blockRequester()">BLOQUEAR</button>
-          <button class="btn-accept" onclick="respondRequest(true)">ACEPTAR</button>
+          <button class="btn-reject" id="btnRejectReq" onclick="respondRequest(false)">RECHAZAR</button>
+          <button class="btn-reject" id="btnBlockReq" onclick="blockRequester()">BLOQUEAR</button>
+          <button class="btn-accept" id="btnAcceptReq" onclick="respondRequest(true)">ACEPTAR</button>
         </div>
       </div>
 
@@ -439,14 +578,119 @@
           <button class="btn-action" onclick="document.getElementById('mediaInput').click()" title="Adjuntar">📁</button>
           <button class="btn-action" id="voiceBtn" onclick="toggleVoiceRecording()" title="Nota de voz">🎙️</button>
           <textarea id="messageInput" placeholder="Mensaje cifrado..." rows="1" onkeydown="handleKey(event)" oninput="notifyTyping()"></textarea>
-          <button class="btn-send" onclick="sendMessage('text')">ENVIAR</button>
+          <button class="btn-send" id="btnSendMsg" onclick="sendMessage('text')">ENVIAR</button>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Modal Configuración Personalizada (Idioma y Opciones) -->
+  <div class="overlay-modal" id="settingsModal">
+    <div class="modal-header">
+      <span id="settingsTitle">⚙️ CONFIGURACIÓN</span>
+      <button class="btn-back" id="btnCloseSettings" onclick="closeSettingsModal()">✕ Cerrar</button>
+    </div>
+    <div class="controls-panel" style="flex:1; justify-content:center; gap:14px;">
+      <div class="setting-row">
+        <span id="lblLang">Idioma / Language:</span>
+        <select id="cfgLang" onchange="applyLanguage(this.value)">
+          <option value="es">Español</option>
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="pt">Português</option>
+          <option value="de">Deutsch</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span id="lblSound">Sonido de notificación:</span>
+        <input type="checkbox" id="cfgSound" checked>
+      </div>
+      <div class="setting-row">
+        <span id="lblPrivacyBlur">Ocultar pantalla al salir:</span>
+        <input type="checkbox" id="cfgPrivacyBlur" checked>
+      </div>
+      <div class="setting-row">
+        <span id="lblDefaultTimer">Autodestrucción por defecto:</span>
+        <select id="cfgDefaultTimer">
+          <option value="0">0s</option>
+          <option value="10">10s</option>
+          <option value="30">30s</option>
+          <option value="60">60s</option>
+        </select>
+      </div>
+    </div>
+    <div class="editor-actions">
+      <button class="btn-pri" id="btnSaveSettings" onclick="saveSettings()">GUARDAR AJUSTES</button>
+    </div>
+  </div>
+
+  <!-- Modal Editor Antes de Enviar (Imagen o Vídeo) -->
+  <div class="overlay-modal" id="mediaEditorModal">
+    <div class="modal-header">
+      <span id="editorTitle">EDITAR ANTES DE ENVIAR</span>
+      <button class="btn-back" onclick="closeMediaEditor()">✕ Cerrar</button>
+    </div>
+    <div class="editor-stage" id="editorStage"></div>
+    <div class="controls-panel">
+      <div class="slider-row">
+        <span id="lblBright">Brillo:</span>
+        <input type="range" id="editBrightness" min="50" max="150" value="100" oninput="applyEditorFilters()">
+        <span id="valBrightness">100%</span>
+      </div>
+      <div class="slider-row">
+        <span id="lblContrast">Contraste:</span>
+        <input type="range" id="editContrast" min="50" max="150" value="100" oninput="applyEditorFilters()">
+        <span id="valContrast">100%</span>
+      </div>
+      <div class="slider-row" id="videoTrimRow" style="display:none;">
+        <span id="lblStartSec">Inicio (s):</span>
+        <input type="range" id="editStartSec" min="0" max="30" value="0" oninput="applyVideoTrim()">
+        <span id="valStartSec">0s</span>
+      </div>
+      <div class="editor-actions">
+        <button class="btn-sec" id="btnRotateImg" onclick="rotateEditorImage()">↻ Girar 90°</button>
+        <button class="btn-sec" id="btnResetEdit" onclick="resetEditor()">↺ Restablecer</button>
+        <button class="btn-pri" id="btnConfirmMedia" onclick="confirmAndSendEditedMedia()">CIFRAR Y ENVIAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Visor Multimedia con Zoom -->
+  <div class="overlay-modal" id="mediaViewerModal">
+    <div class="modal-header">
+      <span id="viewerTitle">VISOR SEGURO</span>
+      <button class="btn-back" onclick="closeMediaViewer()">✕ Cerrar</button>
+    </div>
+    <div class="editor-stage" id="viewerStage" ondblclick="toggleDoubleTapZoom()"></div>
+    <div class="controls-panel" id="viewerZoomPanel">
+      <div class="slider-row">
+        <span>🔍 Zoom:</span>
+        <input type="range" id="viewerZoomSlider" min="1" max="4" step="0.25" value="1" oninput="updateViewerZoom(this.value)">
+        <span id="viewerZoomVal">1.0x</span>
+      </div>
+      <div class="editor-actions">
+        <button class="btn-sec" onclick="updateViewerZoom(1)">1.0x</button>
+        <button class="btn-sec" onclick="updateViewerZoom(2)">2.0x</button>
+        <button class="btn-sec" onclick="updateViewerZoom(3)">3.0x</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Sugerencias -->
+  <div class="overlay-modal" id="suggestionsModal">
+    <div class="modal-header">
+      <span id="suggestModalTitle">💡 SUGERENCIAS Y NOTAS</span>
+      <button class="btn-back" onclick="closeSuggestionsModal()">✕ Cerrar</button>
+    </div>
+    <textarea class="suggest-textarea" id="suggestionInput" placeholder="Escribe aquí tu sugerencia de mejora, función o reporte para CIPHER SHIELD..."></textarea>
+    <div class="editor-actions">
+      <button class="btn-sec" id="btnSaveSuggest" onclick="saveSuggestionLocal()">Guardar en Bóveda</button>
+      <button class="btn-pri" id="btnSendSuggest" onclick="sendSuggestionToActiveChat()">Enviar al Chat Activo</button>
+    </div>
+  </div>
+
   <div class="footer-actions">
-    <button class="btn-wipe" onclick="triggerKillSwitch()">PURGA TOTAL (KILL-SWITCH)</button>
+    <button class="btn-wipe" id="btnKillSwitch" onclick="triggerKillSwitch()">PURGA TOTAL (KILL-SWITCH)</button>
   </div>
 
   <div class="toast" id="toast">Acción completada</div>
@@ -455,6 +699,116 @@
     const WS_URL = 'wss://app-cipher.onrender.com'; 
     const MESH_CHANNEL_NAME = 'CIPHER_MESH_V1';
     const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    const I18N = {
+      es: {
+        suggest: '💡 Sugerencias',
+        settings: '⚙️ Ajustes',
+        authTitle: 'ACCESO BLINDADO',
+        authDesc: 'Introduce tu Clave Maestra para desbloquear tu identidad criptográfica.',
+        keyPlaceholder: 'Clave Maestra...',
+        enter: 'ACCEDER',
+        newChat: '+ Nuevo Chat',
+        searchPlaceholder: '🔍 Buscar CIPHER-ID...',
+        msgPlaceholder: 'Mensaje cifrado...',
+        send: 'ENVIAR',
+        killSwitch: 'PURGA TOTAL (KILL-SWITCH)',
+        settingsTitle: '⚙️ CONFIGURACIÓN',
+        lblLang: 'Idioma / Language:',
+        lblSound: 'Sonido de notificación:',
+        lblPrivacyBlur: 'Ocultar pantalla al salir:',
+        lblDefaultTimer: 'Autodestrucción por defecto:',
+        saveSettings: 'GUARDAR AJUSTES',
+        savedToast: 'Ajustes guardados'
+      },
+      en: {
+        suggest: '💡 Suggestions',
+        settings: '⚙️ Settings',
+        authTitle: 'ARMORED ACCESS',
+        authDesc: 'Enter your Master Key to unlock your cryptographic identity.',
+        keyPlaceholder: 'Master Key...',
+        enter: 'UNLOCK',
+        newChat: '+ New Chat',
+        searchPlaceholder: '🔍 Search CIPHER-ID...',
+        msgPlaceholder: 'Encrypted message...',
+        send: 'SEND',
+        killSwitch: 'TOTAL WIPE (KILL-SWITCH)',
+        settingsTitle: '⚙️ SETTINGS',
+        lblLang: 'Language / Idioma:',
+        lblSound: 'Notification sound:',
+        lblPrivacyBlur: 'Hide screen on background:',
+        lblDefaultTimer: 'Default self-destruct:',
+        saveSettings: 'SAVE SETTINGS',
+        savedToast: 'Settings saved'
+      },
+      fr: {
+        suggest: '💡 Suggestions',
+        settings: '⚙️ Réglages',
+        authTitle: 'ACCÈS BLINDÉ',
+        authDesc: 'Entrez votre Clé Maîtresse pour déverrouiller votre identité.',
+        keyPlaceholder: 'Clé Maîtresse...',
+        enter: 'ENTRER',
+        newChat: '+ Nouveau Chat',
+        searchPlaceholder: '🔍 Chercher CIPHER-ID...',
+        msgPlaceholder: 'Message chiffré...',
+        send: 'ENVOYER',
+        killSwitch: 'PURGE TOTALE (KILL-SWITCH)',
+        settingsTitle: '⚙️ RÉGLAGES',
+        lblLang: 'Langue :',
+        lblSound: 'Son de notification :',
+        lblPrivacyBlur: 'Masquer en arrière-plan :',
+        lblDefaultTimer: 'Auto-destruction défaut :',
+        saveSettings: 'ENREGISTRER',
+        savedToast: 'Réglages enregistrés'
+      },
+      pt: {
+        suggest: '💡 Sugestões',
+        settings: '⚙️ Ajustes',
+        authTitle: 'ACESSO BLINDADO',
+        authDesc: 'Digite sua Chave Mestra para desbloquear sua identidade.',
+        keyPlaceholder: 'Chave Mestra...',
+        enter: 'ENTRAR',
+        newChat: '+ Novo Chat',
+        searchPlaceholder: '🔍 Buscar CIPHER-ID...',
+        msgPlaceholder: 'Mensagem cifrada...',
+        send: 'ENVIAR',
+        killSwitch: 'PURGA TOTAL (KILL-SWITCH)',
+        settingsTitle: '⚙️ AJUSTES',
+        lblLang: 'Idioma :',
+        lblSound: 'Som de notificação :',
+        lblPrivacyBlur: 'Ocultar ao sair :',
+        lblDefaultTimer: 'Autodestruição padrão :',
+        saveSettings: 'SALVAR AJUSTES',
+        savedToast: 'Ajustes salvos'
+      },
+      de: {
+        suggest: '💡 Vorschläge',
+        settings: '⚙️ Einstellungen',
+        authTitle: 'GESICHERTER ZUGRIFF',
+        authDesc: 'Geben Sie Ihren Hauptschlüssel ein, um Ihre Identität zu entsperren.',
+        keyPlaceholder: 'Hauptschlüssel...',
+        enter: 'ÖFFNEN',
+        newChat: '+ Neuer Chat',
+        searchPlaceholder: '🔍 CIPHER-ID suchen...',
+        msgPlaceholder: 'Verschlüsselte Nachricht...',
+        send: 'SENDEN',
+        killSwitch: 'VOLLSTÄNDIGE LÖSCHUNG',
+        settingsTitle: '⚙️ EINSTELLUNGEN',
+        lblLang: 'Sprache:',
+        lblSound: 'Benachrichtigungston:',
+        lblPrivacyBlur: 'Im Hintergrund ausblenden:',
+        lblDefaultTimer: 'Standard-Selbstzerstörung:',
+        saveSettings: 'SPEICHERN',
+        savedToast: 'Einstellungen gespeichert'
+      }
+    };
+
+    let userSettings = {
+      lang: 'es',
+      sound: true,
+      privacyBlur: true,
+      defaultTimer: 0
+    };
 
     let socket;
     let meshChannel = null;
@@ -475,12 +829,61 @@
     let seenPackets = new Set();
     let rtcPeers = new Map();
 
+    let draftMedia = { kind: null, rawDataUrl: null, rotation: 0 };
+    let currentViewerZoom = 1;
+
+    function applyLanguage(langCode) {
+      const dict = I18N[langCode] || I18N.es;
+      userSettings.lang = langCode;
+      document.documentElement.lang = langCode;
+      document.getElementById('btnOpenSuggest').textContent = dict.suggest;
+      document.getElementById('btnOpenSettings').textContent = dict.settings;
+      document.getElementById('authTitle').textContent = dict.authTitle;
+      document.getElementById('authDesc').textContent = dict.authDesc;
+      document.getElementById('masterKeyInput').placeholder = dict.keyPlaceholder;
+      document.getElementById('btnAuthSubmit').textContent = dict.enter;
+      document.getElementById('btnNewChat').textContent = dict.newChat;
+      document.getElementById('chatSearchInput').placeholder = dict.searchPlaceholder;
+      document.getElementById('messageInput').placeholder = dict.msgPlaceholder;
+      document.getElementById('btnSendMsg').textContent = dict.send;
+      document.getElementById('btnKillSwitch').textContent = dict.killSwitch;
+      document.getElementById('settingsTitle').textContent = dict.settingsTitle;
+      document.getElementById('lblLang').textContent = dict.lblLang;
+      document.getElementById('lblSound').textContent = dict.lblSound;
+      document.getElementById('lblPrivacyBlur').textContent = dict.lblPrivacyBlur;
+      document.getElementById('lblDefaultTimer').textContent = dict.lblDefaultTimer;
+      document.getElementById('btnSaveSettings').textContent = dict.saveSettings;
+    }
+
+    function openSettingsModal() {
+      document.getElementById('cfgLang').value = userSettings.lang || 'es';
+      document.getElementById('cfgSound').checked = userSettings.sound !== false;
+      document.getElementById('cfgPrivacyBlur').checked = userSettings.privacyBlur !== false;
+      document.getElementById('cfgDefaultTimer').value = String(userSettings.defaultTimer || 0);
+      document.getElementById('settingsModal').classList.add('active');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('active');
+    }
+
+    async function saveSettings() {
+      userSettings.lang = document.getElementById('cfgLang').value;
+      userSettings.sound = document.getElementById('cfgSound').checked;
+      userSettings.privacyBlur = document.getElementById('cfgPrivacyBlur').checked;
+      userSettings.defaultTimer = parseInt(document.getElementById('cfgDefaultTimer').value, 10) || 0;
+      document.getElementById('destructTimer').value = String(userSettings.defaultTimer);
+      applyLanguage(userSettings.lang);
+      await saveLocalChats();
+      closeSettingsModal();
+      const dict = I18N[userSettings.lang] || I18N.es;
+      showToast(dict.savedToast);
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
+      applyLanguage('es');
       const saltStored = localStorage.getItem('cipher_auth_salt');
-      if (!saltStored) {
-        document.getElementById('authTitle').textContent = "CREAR IDENTIDAD CRIPTOGRÁFICA";
-        document.getElementById('authDesc').textContent = "Define tu Clave Maestra. Tu código único sin colisiones se generará desde tu clave pública.";
-      } else {
+      if (saltStored) {
         myCode = localStorage.getItem('cipher_my_code') || '';
       }
 
@@ -500,7 +903,6 @@
       }
     }
 
-    // Genera identidad única derivada de clave pública ECDSA + SHA-256 (evita duplicados)
     async function generateCryptoFingerprintCode() {
       const keyPair = await crypto.subtle.generateKey(
         { name: 'ECDSA', namedCurve: 'P-256' },
@@ -525,7 +927,7 @@
         } else if (socket && socket.readyState === WebSocket.OPEN && myCode) {
           socket.send(JSON.stringify({ type: 'register', code: myCode }));
         }
-      } else {
+      } else if (userSettings.privacyBlur) {
         document.body.style.filter = 'blur(15px)';
         document.body.style.opacity = '0.1';
       }
@@ -594,6 +996,8 @@
 
     function startAppSession() {
       document.getElementById('displayMyCode').textContent = myCode;
+      document.getElementById('destructTimer').value = String(userSettings.defaultTimer || 0);
+      applyLanguage(userSettings.lang || 'es');
       document.getElementById('authView').classList.remove('active');
       document.getElementById('homeView').classList.add('active');
       initWebSocket();
@@ -621,6 +1025,9 @@
         chatsData = parsed.chats || {};
         approvedChats = new Set(parsed.approved || []);
         blockedChats = new Set(parsed.blocked || []);
+        if (parsed.settings) {
+          userSettings = { ...userSettings, ...parsed.settings };
+        }
       } catch (e) {
         chatsData = {};
         approvedChats = new Set();
@@ -635,7 +1042,8 @@
         const payload = JSON.stringify({
           chats: chatsData,
           approved: [...approvedChats],
-          blocked: [...blockedChats]
+          blocked: [...blockedChats],
+          settings: userSettings
         });
         const enc = new TextEncoder();
         const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -659,7 +1067,6 @@
       return "CIPHER_SECURE_CHANNEL_" + sorted;
     }
 
-    // Envío híbrido: WebRTC P2P si existe + Malla local + Relé WebSocket
     async function dispatchPacket(packet) {
       const enriched = {
         ...packet,
@@ -668,12 +1075,10 @@
       };
       seenPackets.add(enriched.pktId);
 
-      // 1. Malla local (entre pestañas/nodos locales)
       if (meshChannel) {
         meshChannel.postMessage(enriched);
       }
 
-      // 2. Canal directo WebRTC DataChannel si está abierto con el destino
       const peer = rtcPeers.get(enriched.to);
       if (peer && peer.dc && peer.dc.readyState === 'open') {
         try {
@@ -681,13 +1086,11 @@
         } catch (_) {}
       }
 
-      // 3. Relé WebSocket como respaldo de red
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify(enriched));
       }
     }
 
-    // Señalización WebRTC P2P ligera a través del transporte disponible
     async function ensurePeerConnection(targetCode, initiator) {
       if (!targetCode || targetCode === myCode) return null;
       let entry = rtcPeers.get(targetCode);
@@ -796,7 +1199,6 @@
           return;
         }
 
-        // Retransmisión en malla si el paquete no es para este nodo y tiene TTL > 0
         if (rawPacket.to && rawPacket.to !== myCode && typeof rawPacket.ttl === 'number' && rawPacket.ttl > 0 && sourceVia !== 'WS') {
           const relayPkt = { ...rawPacket, ttl: rawPacket.ttl - 1 };
           if (meshChannel) meshChannel.postMessage(relayPkt);
@@ -941,6 +1343,7 @@
     }
 
     function playNotificationSound() {
+      if (!userSettings.sound) return;
       try {
         if (!audioCtx) {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1045,7 +1448,7 @@
         const msgs = chat.messages;
         const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].data.content : 'Canal establecido';
         const preview = typeof lastMsg === 'string'
-          ? (lastMsg.startsWith('data:audio') ? '🎙️ Nota de voz' : (lastMsg.startsWith('data:image') ? '🖼️ Imagen' : lastMsg.substring(0, 24)))
+          ? (lastMsg.startsWith('data:audio') ? '🎙️ Nota de voz' : (lastMsg.startsWith('data:image') ? '🖼️ Imagen' : (lastMsg.startsWith('data:video') ? '🎥 Vídeo' : lastMsg.substring(0, 24))))
           : '[Archivo]';
         const unreadBadge = chat.unread > 0 ? `<span class="unread-badge">${chat.unread}</span>` : '';
         
@@ -1316,26 +1719,211 @@
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function(e) {
+        const dataUrl = e.target.result;
         if (file.type.startsWith('image')) {
-          const img = new Image();
-          img.src = e.target.result;
-          img.onload = function() {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 500; const MAX_HEIGHT = 500;
-            let width = img.width; let height = img.height;
-            if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
-            else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
-            canvas.width = width; canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            sendMessage('image', canvas.toDataURL('image/jpeg', 0.5));
-          };
+          openMediaEditor('image', dataUrl);
+        } else if (file.type.startsWith('video')) {
+          openMediaEditor('video', dataUrl);
         } else {
-          sendMessage(file.type.startsWith('video') ? 'video' : 'audio', e.target.result);
+          sendMessage('audio', dataUrl);
         }
       };
       reader.readAsDataURL(file);
       input.value = '';
+    }
+
+    function openMediaEditor(kind, dataUrl) {
+      draftMedia = { kind, rawDataUrl: dataUrl, rotation: 0 };
+      document.getElementById('editorTitle').textContent = kind === 'image' ? 'EDITAR IMAGEN' : 'EDITAR VÍDEO';
+      document.getElementById('btnRotateImg').style.display = kind === 'image' ? 'block' : 'none';
+      document.getElementById('videoTrimRow').style.display = kind === 'video' ? 'flex' : 'none';
+      resetEditor();
+
+      const stage = document.getElementById('editorStage');
+      if (kind === 'image') {
+        stage.innerHTML = `<img id="editorPreviewMedia" src="${dataUrl}">`;
+      } else {
+        stage.innerHTML = `<video id="editorPreviewMedia" controls src="${dataUrl}"></video>`;
+        const vid = document.getElementById('editorPreviewMedia');
+        vid.onloadedmetadata = () => {
+          const maxSec = Math.max(1, Math.floor(vid.duration || 30));
+          const slider = document.getElementById('editStartSec');
+          slider.max = maxSec;
+          slider.value = 0;
+          document.getElementById('valStartSec').textContent = '0s';
+        };
+      }
+      document.getElementById('mediaEditorModal').classList.add('active');
+    }
+
+    function resetEditor() {
+      draftMedia.rotation = 0;
+      document.getElementById('editBrightness').value = 100;
+      document.getElementById('editContrast').value = 100;
+      document.getElementById('editStartSec').value = 0;
+      document.getElementById('valBrightness').textContent = '100%';
+      document.getElementById('valContrast').textContent = '100%';
+      document.getElementById('valStartSec').textContent = '0s';
+      applyEditorFilters();
+    }
+
+    function rotateEditorImage() {
+      draftMedia.rotation = (draftMedia.rotation + 90) % 360;
+      applyEditorFilters();
+    }
+
+    function applyVideoTrim() {
+      const sec = parseInt(document.getElementById('editStartSec').value, 10) || 0;
+      document.getElementById('valStartSec').textContent = `${sec}s`;
+      const vid = document.getElementById('editorPreviewMedia');
+      if (vid && vid.tagName === 'VIDEO') {
+        vid.currentTime = sec;
+      }
+    }
+
+    function applyEditorFilters() {
+      const b = document.getElementById('editBrightness').value;
+      const c = document.getElementById('editContrast').value;
+      document.getElementById('valBrightness').textContent = `${b}%`;
+      document.getElementById('valContrast').textContent = `${c}%`;
+
+      const el = document.getElementById('editorPreviewMedia');
+      if (!el) return;
+      el.style.filter = `brightness(${b}%) contrast(${c}%)`;
+      if (draftMedia.kind === 'image') {
+        el.style.transform = `rotate(${draftMedia.rotation}deg)`;
+      }
+    }
+
+    function closeMediaEditor() {
+      document.getElementById('mediaEditorModal').classList.remove('active');
+      document.getElementById('editorStage').innerHTML = '';
+      draftMedia = { kind: null, rawDataUrl: null, rotation: 0 };
+    }
+
+    function confirmAndSendEditedMedia() {
+      if (!draftMedia.rawDataUrl || !draftMedia.kind) return;
+      const b = parseInt(document.getElementById('editBrightness').value, 10) || 100;
+      const c = parseInt(document.getElementById('editContrast').value, 10) || 100;
+
+      if (draftMedia.kind === 'image') {
+        const img = new Image();
+        img.src = draftMedia.rawDataUrl;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_SIDE = 640;
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            if (w > MAX_SIDE) { h *= MAX_SIDE / w; w = MAX_SIDE; }
+          } else {
+            if (h > MAX_SIDE) { w *= MAX_SIDE / h; h = MAX_SIDE; }
+          }
+          const swap = draftMedia.rotation === 90 || draftMedia.rotation === 270;
+          canvas.width = swap ? h : w;
+          canvas.height = swap ? w : h;
+          const ctx = canvas.getContext('2d');
+          ctx.filter = `brightness(${b}%) contrast(${c}%)`;
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((draftMedia.rotation * Math.PI) / 180);
+          ctx.drawImage(img, -w / 2, -h / 2, w, h);
+          const editedDataUrl = canvas.toDataURL('image/jpeg', 0.65);
+          closeMediaEditor();
+          sendMessage('image', editedDataUrl);
+        };
+      } else if (draftMedia.kind === 'video') {
+        const videoPayload = draftMedia.rawDataUrl;
+        closeMediaEditor();
+        sendMessage('video', videoPayload);
+        showToast('Vídeo enviado');
+      }
+    }
+
+    function openMediaViewer(kind, src) {
+      currentViewerZoom = 1;
+      document.getElementById('viewerZoomSlider').value = 1;
+      document.getElementById('viewerZoomVal').textContent = '1.0x';
+      document.getElementById('viewerTitle').textContent = kind === 'image' ? 'IMAGEN (ZOOM)' : 'VÍDEO';
+      document.getElementById('viewerZoomPanel').style.display = kind === 'image' ? 'flex' : 'none';
+
+      const stage = document.getElementById('viewerStage');
+      if (kind === 'image') {
+        stage.innerHTML = `<img id="viewerTarget" src="${src}" style="transform: scale(1);">`;
+      } else {
+        stage.innerHTML = `<video controls autoplay playsinline src="${src}"></video>`;
+      }
+      document.getElementById('mediaViewerModal').classList.add('active');
+    }
+
+    function updateViewerZoom(val) {
+      currentViewerZoom = parseFloat(val) || 1;
+      document.getElementById('viewerZoomSlider').value = currentViewerZoom;
+      document.getElementById('viewerZoomVal').textContent = `${currentViewerZoom.toFixed(1)}x`;
+      const img = document.getElementById('viewerTarget');
+      if (img) {
+        img.style.transform = `scale(${currentViewerZoom})`;
+      }
+    }
+
+    function toggleDoubleTapZoom() {
+      updateViewerZoom(currentViewerZoom > 1 ? 1 : 2.5);
+    }
+
+    function closeMediaViewer() {
+      document.getElementById('mediaViewerModal').classList.remove('active');
+      document.getElementById('viewerStage').innerHTML = '';
+    }
+
+    function openSuggestionsModal() {
+      document.getElementById('suggestionsModal').classList.add('active');
+    }
+
+    function closeSuggestionsModal() {
+      document.getElementById('suggestionsModal').classList.remove('active');
+    }
+
+    async function saveSuggestionLocal() {
+      const txt = document.getElementById('suggestionInput').value.trim();
+      if (!txt) {
+        showToast('Escribe una sugerencia primero');
+        return;
+      }
+      if (!masterKey) {
+        showToast('Desbloquea tu sesión primero');
+        return;
+      }
+      const targetKey = currentTarget || 'SUGERENCIAS';
+      ensureChatExists(targetKey);
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      chatsData[targetKey].messages.push({
+        data: { id: 'sug_' + Date.now(), from: myCode, type: 'text', content: `💡 Sugerencia: ${txt}`, timer: 0, time: nowStr },
+        type: 'sent',
+        timer: 0,
+        msgId: 'sug_' + Date.now(),
+        status: 'GUARDADO',
+        time: nowStr,
+        reactions: []
+      });
+      await saveLocalChats();
+      renderChatList();
+      document.getElementById('suggestionInput').value = '';
+      closeSuggestionsModal();
+      showToast('Sugerencia guardada en bóveda');
+    }
+
+    async function sendSuggestionToActiveChat() {
+      const txt = document.getElementById('suggestionInput').value.trim();
+      if (!txt) {
+        showToast('Escribe una sugerencia primero');
+        return;
+      }
+      if (!currentTarget) {
+        showToast('Abre un chat primero para enviarla');
+        return;
+      }
+      document.getElementById('suggestionInput').value = '';
+      closeSuggestionsModal();
+      await sendMessage('text', `💡 Sugerencia: ${txt}`);
     }
 
     function appendMessageToDOM(data, type, timer, msgId, senderCode, initialStatus = '✓ ENVIADO', msgTime = '', reactions = []) {
@@ -1355,9 +1943,9 @@
         innerHTML += `<span>${escapeHTML(data.content)}</span>`;
       } else if (data.type === 'image') {
         plainPreview = '🖼️ Imagen';
-        innerHTML += `<div class="msg-media"><img src="${data.content}"/></div>`;
+        innerHTML += `<div class="msg-media"><img src="${data.content}" onclick="openMediaViewer('image', this.src)"/></div>`;
       } else if (data.type === 'video') {
-        plainPreview = '🎥 Video';
+        plainPreview = '🎥 Vídeo';
         innerHTML += `<div class="msg-media"><video controls src="${data.content}"></video></div>`;
       } else if (data.type === 'audio') {
         plainPreview = '🎙️ Audio';
@@ -1371,6 +1959,8 @@
       innerHTML += `
         <div class="msg-toolbar">
           <button class="msg-tool-btn" onclick="setReply('${msgId}', '${escapeJS(plainPreview)}')">↩ Responder</button>
+          ${data.type === 'image' ? `<button class="msg-tool-btn" onclick="openMediaViewer('image', document.querySelector('#${msgId} img')?.src || '')">🔍 Zoom</button>` : ''}
+          ${data.type === 'video' ? `<button class="msg-tool-btn" onclick="openMediaViewer('video', document.querySelector('#${msgId} video')?.src || '')">⛶ Ampliar</button>` : ''}
           <button class="msg-tool-btn" onclick="sendReaction('${msgId}', '👍')">👍</button>
           <button class="msg-tool-btn" onclick="sendReaction('${msgId}', '❤️')">❤️</button>
           <button class="msg-tool-btn" onclick="sendReaction('${msgId}', '🔥')">🔥</button>
